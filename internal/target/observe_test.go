@@ -393,7 +393,7 @@ type boundaryFS struct {
 }
 
 func (b boundaryFS) ReadFile(p string) ([]byte, error) {
-	info, err := b.FS.Lstat(p)
+	info, err := b.Lstat(p)
 	if err != nil {
 		return nil, err
 	}
@@ -407,7 +407,7 @@ func (b boundaryFS) ReadFile(p string) ([]byte, error) {
 }
 
 func (b boundaryFS) ReadDir(p string) ([]fs.DirEntry, error) {
-	info, err := b.FS.Lstat(p)
+	info, err := b.Lstat(p)
 	if err != nil {
 		return nil, err
 	}
