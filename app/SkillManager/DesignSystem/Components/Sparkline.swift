@@ -23,7 +23,7 @@ struct Sparkline: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
         }
-        .frame(height: Layout.sparklineHeight)
+        .frame(height: Measure.sparklineHeight)
         .accessibilityLabel("Usage over 30 days")
         .onAppear {
             guard playsIntro, !reduceMotion else {
@@ -62,13 +62,13 @@ struct Sparkline: View {
 
 #Preview("Sparkline") {
     Sparkline(values: [2, 4, 3, 8, 6, 1, 0, 5, 9, 7, 4, 8, 11, 6, 3], playsIntro: false)
-        .frame(width: Layout.sparklineWidth)
+        .frame(width: Measure.sparklineWidth)
         .padding(Spacing.lg)
 }
 
 #Preview("Sparkline dark") {
     Sparkline(values: [2, 4, 3, 8, 6, 1, 0, 5, 9, 7, 4, 8, 11, 6, 3], playsIntro: false)
-        .frame(width: Layout.sparklineWidth)
+        .frame(width: Measure.sparklineWidth)
         .padding(Spacing.lg)
         .background(Palette.page)
         .preferredColorScheme(.dark)

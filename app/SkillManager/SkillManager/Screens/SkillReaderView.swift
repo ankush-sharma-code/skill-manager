@@ -19,7 +19,7 @@ struct ReaderToolbar: View {
             .accessibilityIdentifier("open-in-editor")
         }
         .padding(.horizontal, Spacing.sm)
-        .frame(minHeight: Layout.columnHeader)
+        .frame(minHeight: Measure.columnHeader)
         .background {
             ZStack {
                 Rectangle().fill(Palette.content)
@@ -54,7 +54,7 @@ struct SkillReaderView: View {
                 ReaderBlocks(blocks: skill.body)
             }
             .padding(Spacing.lg)
-            .frame(maxWidth: Layout.reading, alignment: .leading)
+            .frame(maxWidth: Measure.reading, alignment: .leading)
             .frame(maxWidth: .infinity)
             .textSelection(.enabled)
         }
@@ -75,7 +75,7 @@ struct SkillReaderView: View {
             Spacer(minLength: Spacing.sm)
             VStack(alignment: .trailing, spacing: Spacing.xxs) {
                 Sparkline(values: skill.series, playsIntro: playsIntro)
-                    .frame(width: Layout.sparklineWidth)
+                    .frame(width: Measure.sparklineWidth)
                 HStack(spacing: Spacing.xxs) {
                     AnimatingCount(value: skill.usesThisWeek, font: Typography.caption)
                     Text("this week")
@@ -143,11 +143,11 @@ struct SkillReaderScreen: View {
 
 #Preview("Skill reader") {
     SkillReaderScreen(playsIntro: false)
-        .frame(width: Layout.readerWidth, height: Layout.readerHeight)
+        .frame(width: Measure.readerWidth, height: Measure.readerHeight)
 }
 
 #Preview("Skill reader dark") {
     SkillReaderScreen(playsIntro: false)
-        .frame(width: Layout.readerWidth, height: Layout.readerHeight)
+        .frame(width: Measure.readerWidth, height: Measure.readerHeight)
         .preferredColorScheme(.dark)
 }

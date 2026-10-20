@@ -103,7 +103,7 @@ enum ReaderBlock: Equatable, Identifiable {
     }
 }
 
-struct SkillFixture: Identifiable, Equatable, Hashable {
+struct SkillFixture: Identifiable, Equatable {
     var name: String
     var summary: String
     var detail: String

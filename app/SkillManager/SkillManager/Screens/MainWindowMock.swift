@@ -9,16 +9,16 @@ struct AppShell<Content: View, Detail: View>: View {
         NavigationSplitView {
             SidebarColumn(model: model)
                 .navigationSplitViewColumnWidth(
-                    min: Layout.sidebarMin,
-                    ideal: Layout.sidebar,
-                    max: Layout.sidebarMax
+                    min: Measure.sidebarMin,
+                    ideal: Measure.sidebar,
+                    max: Measure.sidebarMax
                 )
         } content: {
             content()
                 .navigationSplitViewColumnWidth(
-                    min: Layout.listMin,
-                    ideal: Layout.list,
-                    max: Layout.listMax
+                    min: Measure.listMin,
+                    ideal: Measure.list,
+                    max: Measure.listMax
                 )
         } detail: {
             detail()
@@ -338,8 +338,8 @@ struct MainWindowMock: View {
                     onSubmit: { model.perform($0) },
                     onDismiss: { model.palettePresented = false }
                 )
-                .frame(width: Layout.paletteWidth)
-                .padding(.top, Layout.paletteTop)
+                .frame(width: Measure.paletteWidth)
+                .padding(.top, Measure.paletteTop)
                 .transition(.opacity)
             }
         }
@@ -358,16 +358,16 @@ struct CommandPaletteMock: View {
 
 #Preview("Main window") {
     MainWindowMock(model: DemoModel(), playsIntro: false, animatesSelection: false)
-        .frame(width: Layout.mainWidth, height: Layout.mainHeight)
+        .frame(width: Measure.mainWidth, height: Measure.mainHeight)
 }
 
 #Preview("Main window dark") {
     MainWindowMock(model: DemoModel(), playsIntro: false, animatesSelection: false)
-        .frame(width: Layout.mainWidth, height: Layout.mainHeight)
+        .frame(width: Measure.mainWidth, height: Measure.mainHeight)
         .preferredColorScheme(.dark)
 }
 
 #Preview("Command palette") {
     CommandPaletteMock()
-        .frame(width: Layout.mainWidth, height: Layout.mainHeight)
+        .frame(width: Measure.mainWidth, height: Measure.mainHeight)
 }

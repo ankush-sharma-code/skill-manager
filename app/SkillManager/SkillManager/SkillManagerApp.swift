@@ -9,7 +9,7 @@ struct SkillManagerApp: App {
         WindowGroup("Skill Manager") {
             DemoRoot(model: model)
         }
-        .defaultSize(width: Layout.mainWidth, height: Layout.mainHeight)
+        .defaultSize(width: Measure.mainWidth, height: Measure.mainHeight)
         .commands {
             CommandGroup(replacing: .newItem) {
                 Button("Add Skill") {
@@ -61,7 +61,7 @@ struct DemoRoot: View {
 
     var body: some View {
         MainWindowMock(model: model, playsIntro: true, animatesSelection: true)
-            .frame(minWidth: Layout.mainWidth, minHeight: Layout.mainHeight)
+            .frame(minWidth: Measure.mainWidth, minHeight: Measure.mainHeight)
             .sheet(isPresented: $model.wizardPresented) {
                 InteractiveWizard()
             }
@@ -74,7 +74,7 @@ struct DemoRoot: View {
             NSApp.activate(ignoringOtherApps: true)
             guard let window = NSApp.windows.first(where: \.canBecomeMain) else { return }
             window.title = "Skill Manager"
-            window.setContentSize(NSSize(width: Layout.mainWidth, height: Layout.mainHeight))
+            window.setContentSize(NSSize(width: Measure.mainWidth, height: Measure.mainHeight))
             window.center()
         }
     }

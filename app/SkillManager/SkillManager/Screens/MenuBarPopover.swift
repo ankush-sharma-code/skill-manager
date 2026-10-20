@@ -15,7 +15,7 @@ struct MenuBarPopover: View {
             Divider()
             actions
         }
-        .frame(width: Layout.popoverWidth, alignment: .topLeading)
+        .frame(width: Measure.popoverWidth, alignment: .topLeading)
         .frame(maxHeight: .infinity, alignment: .top)
         .background {
             ZStack {
@@ -107,11 +107,11 @@ struct MenuBarPopover: View {
 
 #Preview("Menu bar") {
     MenuBarPopover(model: DemoModel())
-        .frame(width: Layout.popoverWidth, height: Layout.popoverHeight)
+        .frame(width: Measure.popoverWidth, height: Measure.popoverHeight)
 }
 
 #Preview("Menu bar dark") {
     MenuBarPopover(model: DemoModel())
-        .frame(width: Layout.popoverWidth, height: Layout.popoverHeight)
+        .frame(width: Measure.popoverWidth, height: Measure.popoverHeight)
         .preferredColorScheme(.dark)
 }

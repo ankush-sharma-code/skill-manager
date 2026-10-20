@@ -37,7 +37,7 @@ struct QuickSearchPalette: View {
             Divider()
             results
         }
-        .frame(maxWidth: .infinity, maxHeight: Layout.paletteHeight, alignment: .top)
+        .frame(maxWidth: .infinity, maxHeight: Measure.paletteHeight, alignment: .top)
         .background {
             RoundedRectangle(cornerRadius: Radius.large, style: .continuous)
                 .fill(Palette.elevated)

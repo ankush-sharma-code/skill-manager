@@ -1,16 +1,16 @@
 import SwiftUI
 
-struct ChipWrap: Layout {
+struct ChipWrap: SwiftUI.Layout {
     var spacing: CGFloat
 
-    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
-        let width = proposal.width ?? Layout.reading
+    func sizeThatFits(proposal: ProposedViewSize, subviews: SwiftUI.Layout.Subviews, cache: inout ()) -> CGSize {
+        let width = proposal.width ?? Measure.reading
         let rows = place(in: width, subviews: subviews)
         let height = rows.last.map { $0.y + $0.height } ?? 0
         return CGSize(width: width, height: height)
     }
 
-    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: SwiftUI.Layout.Subviews, cache: inout ()) {
         let rows = place(in: bounds.width, subviews: subviews)
         for item in rows {
             item.subview.place(
@@ -20,7 +20,7 @@ struct ChipWrap: Layout {
         }
     }
 
-    private func place(in width: CGFloat, subviews: Subviews) -> [Row] {
+    private func place(in width: CGFloat, subviews: SwiftUI.Layout.Subviews) -> [Row] {
         var rows: [Row] = []
         var x: CGFloat = 0
         var y: CGFloat = 0
@@ -40,7 +40,7 @@ struct ChipWrap: Layout {
     }
 
     private struct Row {
-        var subview: LayoutSubview
+        var subview: SwiftUI.LayoutSubview
         var x: CGFloat
         var y: CGFloat
         var width: CGFloat

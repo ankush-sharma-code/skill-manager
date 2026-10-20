@@ -266,7 +266,7 @@ struct WizardBody: View {
                             }
                         }
                         .pickerStyle(.segmented)
-                        .frame(width: Layout.modePicker)
+                        .frame(width: Measure.modePicker)
                         .labelsHidden()
                     }
                     .padding(Spacing.sm)
@@ -317,7 +317,7 @@ struct InteractiveWizard: View {
                 .transition(Motion.wizardTransition(forward: forward, reduceMotion: reduceMotion))
         }
         .animation(Motion.animation(.step, reduceMotion: reduceMotion), value: step)
-        .frame(width: Layout.wizardWidth, height: Layout.wizardHeight)
+        .frame(width: Measure.wizardWidth, height: Measure.wizardHeight)
     }
 
     private func goForward() {
@@ -342,26 +342,26 @@ struct InteractiveWizard: View {
 
 #Preview("Welcome") {
     WizardFrame(step: .welcome)
-        .frame(width: Layout.wizardWidth, height: Layout.wizardHeight)
+        .frame(width: Measure.wizardWidth, height: Measure.wizardHeight)
 }
 
 #Preview("Detect") {
     WizardFrame(step: .detect)
-        .frame(width: Layout.wizardWidth, height: Layout.wizardHeight)
+        .frame(width: Measure.wizardWidth, height: Measure.wizardHeight)
 }
 
 #Preview("Import") {
     WizardFrame(step: .importExisting)
-        .frame(width: Layout.wizardWidth, height: Layout.wizardHeight)
+        .frame(width: Measure.wizardWidth, height: Measure.wizardHeight)
 }
 
 #Preview("Sync mode") {
     WizardFrame(step: .syncMode)
-        .frame(width: Layout.wizardWidth, height: Layout.wizardHeight)
+        .frame(width: Measure.wizardWidth, height: Measure.wizardHeight)
 }
 
 #Preview("Welcome dark") {
     WizardFrame(step: .welcome)
-        .frame(width: Layout.wizardWidth, height: Layout.wizardHeight)
+        .frame(width: Measure.wizardWidth, height: Measure.wizardHeight)
         .preferredColorScheme(.dark)
 }

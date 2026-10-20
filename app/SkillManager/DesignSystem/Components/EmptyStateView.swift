@@ -20,7 +20,7 @@ struct EmptyStateView: View {
                 .font(Typography.body)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
-                .frame(maxWidth: Layout.chipMax)
+                .frame(maxWidth: Measure.chipMax)
             if let actionTitle {
                 Button(actionTitle, action: action)
                     .buttonStyle(.borderedProminent)

@@ -34,13 +34,13 @@ enum MockScreen: String, CaseIterable, Identifiable {
     var size: CGSize {
         switch self {
         case .wizardWelcome, .wizardDetect, .wizardImport, .wizardSyncMode:
-            CGSize(width: Layout.wizardWidth, height: Layout.wizardHeight)
+            CGSize(width: Measure.wizardWidth, height: Measure.wizardHeight)
         case .skillReader:
-            CGSize(width: Layout.readerWidth, height: Layout.readerHeight)
+            CGSize(width: Measure.readerWidth, height: Measure.readerHeight)
         case .menuBarPopover:
-            CGSize(width: Layout.popoverWidth, height: Layout.popoverHeight)
+            CGSize(width: Measure.popoverWidth, height: Measure.popoverHeight)
         default:
-            CGSize(width: Layout.mainWidth, height: Layout.mainHeight)
+            CGSize(width: Measure.mainWidth, height: Measure.mainHeight)
         }
     }
 

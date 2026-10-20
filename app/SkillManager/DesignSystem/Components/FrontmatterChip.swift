@@ -15,7 +15,7 @@ struct FrontmatterChip: View {
         .font(Typography.caption)
         .padding(.horizontal, Spacing.xs)
         .padding(.vertical, Spacing.xxs)
-        .frame(maxWidth: Layout.chipMax, alignment: .leading)
+        .frame(maxWidth: Measure.chipMax, alignment: .leading)
         .background(Palette.chip, in: Capsule())
         .overlay(Capsule().stroke(Palette.stroke))
         .accessibilityLabel("\(key) \(value)")

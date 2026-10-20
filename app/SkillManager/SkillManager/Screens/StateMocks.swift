@@ -89,21 +89,21 @@ struct ErrorSkillsMock: View {
 
 #Preview("Empty") {
     EmptySkillsMock()
-        .frame(width: Layout.mainWidth, height: Layout.mainHeight)
+        .frame(width: Measure.mainWidth, height: Measure.mainHeight)
 }
 
 #Preview("Loading") {
     LoadingSkillsMock()
-        .frame(width: Layout.mainWidth, height: Layout.mainHeight)
+        .frame(width: Measure.mainWidth, height: Measure.mainHeight)
 }
 
 #Preview("Error") {
     ErrorSkillsMock()
-        .frame(width: Layout.mainWidth, height: Layout.mainHeight)
+        .frame(width: Measure.mainWidth, height: Measure.mainHeight)
 }
 
 #Preview("Error dark") {
     ErrorSkillsMock()
-        .frame(width: Layout.mainWidth, height: Layout.mainHeight)
+        .frame(width: Measure.mainWidth, height: Measure.mainHeight)
         .preferredColorScheme(.dark)
 }

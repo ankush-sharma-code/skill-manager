@@ -1,6 +1,6 @@
 import CoreGraphics
 
-enum Layout {
+enum Measure {
     static let sidebarMin: CGFloat = 208
     static let sidebar: CGFloat = 224
     static let sidebarMax: CGFloat = 256
