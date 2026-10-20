@@ -58,16 +58,13 @@ final class MockRenderTests: XCTestCase {
                 let data = try render(screen, scheme: scheme)
                 let url = root.appendingPathComponent(name)
                 try data.write(to: url)
-                let attachment = XCTAttachment(data: data, uniformTypeIdentifier: "public.png")
-                attachment.name = name
-                attachment.lifetime = .keepAlways
-                add(attachment)
                 let rep = NSBitmapImageRep(data: data)
                 XCTAssertGreaterThan(rep?.pixelsWide ?? 0, 200, name)
                 XCTAssertGreaterThan(data.count, 5_000, name)
                 print("MOCK_RENDER_WROTE \(url.path) \(data.count)")
             }
         }
+        print("MOCK_RENDER_DONE")
     }
 
     private func render(_ screen: MockScreen, scheme: ColorScheme) throws -> Data {
@@ -108,12 +105,13 @@ final class MockRenderTests: XCTestCase {
             defer: false
         )
         window.appearance = appearance
+        window.isReleasedWhenClosed = false
         window.contentView = hosting
         window.setContentSize(size)
-        window.makeKeyAndOrderFront(nil)
+        window.orderFrontRegardless()
         window.displayIfNeeded()
         hosting.layoutSubtreeIfNeeded()
-        RunLoop.current.run(until: Date().addingTimeInterval(0.2))
+        RunLoop.current.run(mode: .default, before: Date().addingTimeInterval(0.12))
         let scale = max(window.backingScaleFactor, 2)
         let pixelsWide = Int(size.width * scale)
         let pixelsHigh = Int(size.height * scale)
@@ -135,6 +133,8 @@ final class MockRenderTests: XCTestCase {
             hosting.wantsLayer = true
         }
         hosting.layer?.render(in: context)
+        window.contentView = NSView(frame: NSRect(origin: .zero, size: size))
+        window.orderOut(nil)
         window.close()
         guard
             let cgImage = context.makeImage(),
