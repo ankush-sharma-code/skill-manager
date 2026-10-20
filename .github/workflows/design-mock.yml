@@ -1,0 +1,71 @@
+name: Design mock
+
+on:
+  push:
+  pull_request:
+
+concurrency:
+  group: design-mock-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  render:
+    runs-on: macos-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Xcode version
+        run: xcodebuild -version
+
+      - name: Render stills
+        working-directory: app/SkillManager
+        env:
+          MOCK_OUTPUT: /tmp/skill-manager-renders
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/skill-manager-renders
+          xcodebuild test \
+            -project SkillManager.xcodeproj \
+            -scheme SkillManager \
+            -destination 'platform=macOS' \
+            -derivedDataPath "$GITHUB_WORKSPACE/build" \
+            -only-testing:SkillManagerTests \
+            -parallel-testing-enabled NO \
+            CODE_SIGN_IDENTITY=- \
+            CODE_SIGN_STYLE=Manual \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=YES
+
+      - name: Record interactions
+        working-directory: app/SkillManager
+        run: |
+          set -euo pipefail
+          xcodebuild test \
+            -project SkillManager.xcodeproj \
+            -scheme SkillManager \
+            -destination 'platform=macOS' \
+            -derivedDataPath "$GITHUB_WORKSPACE/build" \
+            -only-testing:SkillManagerUITests \
+            -parallel-testing-enabled NO \
+            CODE_SIGN_IDENTITY=- \
+            CODE_SIGN_STYLE=Manual \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=YES
+
+      - name: Collect artifacts
+        if: always()
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/renders
+          cp -v /tmp/skill-manager-renders/*.png artifacts/renders/ || true
+          cp -v /tmp/skill-manager-interaction-light.mov artifacts/ || true
+          find artifacts -type f -print
+          find /tmp "$GITHUB_WORKSPACE/build" -name '*.png' -o -name '*.mov' -o -name '*.log' | head -80
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: design-mock
+          path: artifacts/**
+          if-no-files-found: error
