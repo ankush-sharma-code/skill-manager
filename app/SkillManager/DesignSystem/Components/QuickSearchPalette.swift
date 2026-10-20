@@ -48,6 +48,7 @@ struct QuickSearchPalette: View {
         )
         .clipShape(RoundedRectangle(cornerRadius: Radius.large, style: .continuous))
         .shadow(color: Palette.shadow(colorScheme), radius: Spacing.md, y: Spacing.xs)
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("command-palette")
         .onAppear { focused = true }
         .onExitCommand(perform: onDismiss)

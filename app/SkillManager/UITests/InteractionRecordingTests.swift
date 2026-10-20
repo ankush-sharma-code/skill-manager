@@ -66,9 +66,13 @@ final class InteractionRecordingTests: XCTestCase {
         app.typeKey("k", modifierFlags: .command)
         let palette = app.descendants(matching: .any)["command-palette"]
         let search = app.descendants(matching: .any)["palette-search"]
-        if palette.waitForExistence(timeout: 4), search.waitForExistence(timeout: 2), search.isHittable {
-            search.click()
-            search.typeText("sync")
+        if palette.waitForExistence(timeout: 4) {
+            if search.waitForExistence(timeout: 2), search.isHittable {
+                search.click()
+            } else if palette.isHittable {
+                palette.click()
+            }
+            app.typeText("sync")
             pause(0.7, frames: &frames)
             app.typeKey(.escape, modifierFlags: [])
             pause(0.4, frames: &frames)
