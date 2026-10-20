@@ -2,8 +2,8 @@ import SwiftUI
 
 struct AppShell<Content: View, Detail: View>: View {
     @Bindable var model: DemoModel
-    var content: () -> Content
-    var detail: () -> Detail
+    @ViewBuilder var content: () -> Content
+    @ViewBuilder var detail: () -> Detail
 
     var body: some View {
         NavigationSplitView {
