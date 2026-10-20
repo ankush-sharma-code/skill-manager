@@ -33,6 +33,7 @@ var ErrSymlink = errors.New("symlink under skill root")
 type Repo struct {
 	fs    ports.FS
 	clock ports.Clock
+	rng   io.Reader
 	root  string
 }
 
@@ -121,8 +122,9 @@ func (r *Repo) Get(ctx context.Context, name domain.SkillName) (domain.Skill, er
 	return skillfile.Load(string(parsed), files)
 }
 
-// Put writes the file map to a staging directory and renames it to <root>/<name>.
-// An existing skill is moved aside first and restored if the new directory cannot take its place.
+// Put writes the new tree under .stage/<id>.new, moves an existing skill to
+// .stage/<id>.old, then renames the new tree into place.
+// A crash between those renames is finished by Recover.
 func (r *Repo) Put(ctx context.Context, skill domain.Skill, files map[string][]byte) error {
 	if err := ctx.Err(); err != nil {
 		return err
@@ -145,40 +147,39 @@ func (r *Repo) Put(ctx context.Context, skill domain.Skill, files map[string][]b
 	if folded {
 		return ErrCaseCollision
 	}
-	staging, err := r.tempPath(".tmp-", string(parsed))
+	if err := r.ensureRealDir(filepath.Join(r.root, ".stage")); err != nil {
+		return err
+	}
+	id, err := r.stageID(string(parsed))
 	if err != nil {
 		return err
 	}
-	if err := r.writeTree(staging, staged); err != nil {
-		r.removeQuiet(staging)
+	newDir := filepath.Join(r.root, ".stage", id+".new")
+	oldDir := filepath.Join(r.root, ".stage", id+".old")
+	if err := r.writeTree(newDir, staged); err != nil {
+		r.removeQuiet(newDir)
 		return err
 	}
 	dest := filepath.Join(r.root, string(parsed))
-	if !exact {
-		if err := r.fs.Rename(staging, dest); err != nil {
-			r.removeQuiet(staging)
+	if exact {
+		if err := r.fs.Rename(dest, oldDir); err != nil {
+			r.removeQuiet(newDir)
 			return err
 		}
-		return nil
 	}
-	backup, err := r.tempPath(".old-", string(parsed))
-	if err != nil {
-		r.removeQuiet(staging)
-		return err
-	}
-	if err := r.fs.Rename(dest, backup); err != nil {
-		r.removeQuiet(staging)
-		return err
-	}
-	if err := r.fs.Rename(staging, dest); err != nil {
-		if backErr := r.fs.Rename(backup, dest); backErr != nil {
-			return fmt.Errorf("publish %s: %w (rollback: %v)", parsed, err, backErr)
+	if err := r.fs.Rename(newDir, dest); err != nil {
+		if exact {
+			if backErr := r.fs.Rename(oldDir, dest); backErr != nil {
+				return fmt.Errorf("publish %s: %w (rollback: %v)", parsed, err, backErr)
+			}
 		}
-		r.removeQuiet(staging)
+		r.removeQuiet(newDir)
 		return err
 	}
-	if err := r.fs.RemoveAll(backup); err != nil {
-		return err
+	if exact {
+		if err := r.fs.RemoveAll(oldDir); err != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -414,12 +415,136 @@ func (r *Repo) readFiles(dir string) ([]skillfile.File, error) {
 	return out, nil
 }
 
-func (r *Repo) tempPath(prefix, name string) (string, error) {
-	var buf [8]byte
-	if _, err := rand.Read(buf[:]); err != nil {
+func (r *Repo) stageID(name string) (string, error) {
+	suffix, err := r.randomHex(8)
+	if err != nil {
 		return "", err
 	}
-	return filepath.Join(r.root, prefix+name+"-"+hex.EncodeToString(buf[:])), nil
+	return name + "-" + suffix, nil
+}
+
+func (r *Repo) randomHex(n int) (string, error) {
+	buf := make([]byte, n)
+	reader := r.rng
+	if reader == nil {
+		reader = rand.Reader
+	}
+	if _, err := io.ReadFull(reader, buf); err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(buf), nil
+}
+
+type stagePair struct {
+	newPath string
+	oldPath string
+}
+
+func skillFromStageID(id string) (string, bool) {
+	const hexLen = 16
+	if len(id) < hexLen+2 || id[len(id)-hexLen-1] != '-' {
+		return "", false
+	}
+	hexPart := id[len(id)-hexLen:]
+	for _, c := range hexPart {
+		if (c < '0' || c > '9') && (c < 'a' || c > 'f') {
+			return "", false
+		}
+	}
+	name := id[:len(id)-hexLen-1]
+	if _, err := domain.ParseSkillName(name); err != nil {
+		return "", false
+	}
+	return name, true
+}
+
+// Recover finishes or undoes a torn publish left under .stage.
+// A pair with both the new tree and the old tree, and no live skill, is rolled forward.
+// A new tree beside a live skill is discarded. An old tree with no live skill is restored.
+func (r *Repo) Recover(ctx context.Context) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if err := r.rejectSymlink(r.root); err != nil {
+		return err
+	}
+	stage := filepath.Join(r.root, ".stage")
+	info, err := r.fs.Lstat(stage)
+	if errors.Is(err, fs.ErrNotExist) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	if info.Mode()&fs.ModeSymlink != 0 {
+		return fmt.Errorf("%w: %s", ErrSymlink, stage)
+	}
+	ents, err := r.fs.ReadDir(stage)
+	if err != nil {
+		return err
+	}
+	pairs := map[string]*stagePair{}
+	var ids []string
+	for _, ent := range ents {
+		name := ent.Name()
+		var id, kind string
+		switch {
+		case strings.HasSuffix(name, ".new"):
+			id, kind = strings.TrimSuffix(name, ".new"), "new"
+		case strings.HasSuffix(name, ".old"):
+			id, kind = strings.TrimSuffix(name, ".old"), "old"
+		default:
+			continue
+		}
+		if _, ok := skillFromStageID(id); !ok {
+			continue
+		}
+		pair := pairs[id]
+		if pair == nil {
+			pair = &stagePair{}
+			pairs[id] = pair
+			ids = append(ids, id)
+		}
+		full := filepath.Join(stage, name)
+		if kind == "new" {
+			pair.newPath = full
+		} else {
+			pair.oldPath = full
+		}
+	}
+	sort.Strings(ids)
+	for _, id := range ids {
+		skillName, _ := skillFromStageID(id)
+		if err := r.recoverOne(skillName, pairs[id]); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (r *Repo) recoverOne(name string, pair *stagePair) error {
+	live := filepath.Join(r.root, name)
+	info, err := r.fs.Lstat(live)
+	if err != nil && !errors.Is(err, fs.ErrNotExist) {
+		return err
+	}
+	liveOK := err == nil && info.IsDir() && info.Mode()&fs.ModeSymlink == 0
+	switch {
+	case pair.newPath != "" && pair.oldPath != "" && !liveOK:
+		if err := r.fs.Rename(pair.newPath, live); err != nil {
+			return err
+		}
+		return r.fs.RemoveAll(pair.oldPath)
+	case pair.oldPath != "" && !liveOK:
+		return r.fs.Rename(pair.oldPath, live)
+	case pair.newPath != "" && liveOK:
+		r.removeQuiet(pair.newPath)
+		return nil
+	case pair.oldPath != "" && liveOK:
+		return r.fs.RemoveAll(pair.oldPath)
+	default:
+		return nil
+	}
 }
 
 func (r *Repo) removeQuiet(path string) {
@@ -429,11 +554,8 @@ func (r *Repo) removeQuiet(path string) {
 // Problems returns skill directories the last List could not load.
 func (r *Repo) Problems() []ports.SkillProblem { return nil }
 
-// Recover finishes or undoes a torn publish left under .stage.
-func (r *Repo) Recover(context.Context) error { return errors.New("not implemented") }
-
 // SetRand supplies bytes for trash names and stage ids.
-func (r *Repo) SetRand(io.Reader) {}
+func (r *Repo) SetRand(rng io.Reader) { r.rng = rng }
 
 // SetLog receives a best-effort backup removal failure.
 func (r *Repo) SetLog(func(string, ...any)) {}

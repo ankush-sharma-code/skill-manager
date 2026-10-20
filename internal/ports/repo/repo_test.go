@@ -444,14 +444,15 @@ func TestPutRollbackAndPublishFailures(t *testing.T) {
 		if err := plain.Put(ctx, skillWith(name, "Says hello", nil), oldFiles); err != nil {
 			t.Fatal(err)
 		}
-		store, _ := openRepo(t, renamingFS{FS: inner, failPrefix: ".old-"}, root, time.Unix(10, 0))
+		store, _ := openRepo(t, renamingFS{FS: inner, failSuffix: ".old"}, root, time.Unix(10, 0))
 		err := store.Put(ctx, skillWith(name, "Says hello", nil), newFiles)
 		if !errors.Is(err, errBlocked) {
 			t.Fatalf("Put err = %v", err)
 		}
 		assertFiles(t, inner, root+"/demo", oldFiles)
-		assertNoPrefix(t, inner, root, ".tmp-")
-		assertNoPrefix(t, inner, root, ".old-")
+		if leftovers := stageLeftovers(t, inner, root); len(leftovers) != 0 {
+			t.Fatalf("stage leftovers = %v", leftovers)
+		}
 	})
 
 	t.Run("rollback rename fails", func(t *testing.T) {
@@ -468,9 +469,10 @@ func TestPutRollbackAndPublishFailures(t *testing.T) {
 		if _, statErr := inner.Lstat(root + "/demo"); !errors.Is(statErr, fs.ErrNotExist) {
 			t.Fatalf("live skill = %v", statErr)
 		}
-		backup := findPrefix(t, inner, root, ".old-demo-")
+		stage := filepath.Join(root, ".stage")
+		backup := findSuffix(t, inner, stage, ".old")
 		assertFiles(t, inner, backup, oldFiles)
-		staged := findPrefix(t, inner, root, ".tmp-demo-")
+		staged := findSuffix(t, inner, stage, ".new")
 		body, err := inner.ReadFile(staged + "/SKILL.md")
 		if err != nil || !bytes.Contains(body, []byte("new\n")) {
 			t.Fatalf("staging = %q %v", body, err)
@@ -483,13 +485,13 @@ func TestPutRollbackAndPublishFailures(t *testing.T) {
 		if err := plain.Put(ctx, skillWith(name, "Says hello", nil), oldFiles); err != nil {
 			t.Fatal(err)
 		}
-		store, _ := openRepo(t, removingFS{FS: inner, failPrefix: ".old-"}, root, time.Unix(10, 0))
+		store, _ := openRepo(t, removingFS{FS: inner, failSuffix: ".old"}, root, time.Unix(10, 0))
 		err := store.Put(ctx, skillWith(name, "Says hello", nil), newFiles)
 		if !errors.Is(err, errBlocked) {
 			t.Fatalf("Put err = %v", err)
 		}
 		assertFiles(t, inner, root+"/demo", newFiles)
-		if findPrefix(t, inner, root, ".old-demo-") == "" {
+		if findSuffix(t, inner, filepath.Join(root, ".stage"), ".old") == "" {
 			t.Fatal("backup removed")
 		}
 	})
@@ -546,7 +548,7 @@ func TestRepoFilesystemErrors(t *testing.T) {
 		if err := plain.Put(ctx, skillWith(name, "Says hello", nil), files); err != nil {
 			t.Fatal(err)
 		}
-		store, _ := openRepo(t, mkdirFS{FS: inner, failPrefix: ".tmp-"}, root, time.Unix(10, 0))
+		store, _ := openRepo(t, mkdirFS{FS: inner, failSuffix: ".new"}, root, time.Unix(10, 0))
 		err := store.Put(ctx, skillWith(name, "Says hello", nil), files)
 		if !errors.Is(err, errBlocked) {
 			t.Fatalf("Put err = %v", err)
@@ -731,6 +733,7 @@ type renamingFS struct {
 	ports.FS
 	failBase   string
 	failPrefix string
+	failSuffix string
 }
 
 func (f renamingFS) Rename(oldpath, newpath string) error {
@@ -741,16 +744,24 @@ func (f renamingFS) Rename(oldpath, newpath string) error {
 	if f.failPrefix != "" && strings.HasPrefix(base, f.failPrefix) {
 		return errBlocked
 	}
+	if f.failSuffix != "" && strings.HasSuffix(base, f.failSuffix) {
+		return errBlocked
+	}
 	return f.FS.Rename(oldpath, newpath)
 }
 
 type removingFS struct {
 	ports.FS
 	failPrefix string
+	failSuffix string
 }
 
 func (f removingFS) RemoveAll(path string) error {
-	if strings.HasPrefix(filepath.Base(path), f.failPrefix) {
+	base := filepath.Base(path)
+	if f.failPrefix != "" && strings.HasPrefix(base, f.failPrefix) {
+		return errBlocked
+	}
+	if f.failSuffix != "" && strings.HasSuffix(base, f.failSuffix) {
 		return errBlocked
 	}
 	return f.FS.RemoveAll(path)
@@ -878,14 +889,14 @@ func assertNoPrefix(t *testing.T, fsys ports.FS, dir, prefix string) {
 	}
 }
 
-func findPrefix(t *testing.T, fsys ports.FS, dir, prefix string) string {
+func findSuffix(t *testing.T, fsys ports.FS, dir, suffix string) string {
 	t.Helper()
 	for _, name := range dirNames(t, fsys, dir) {
-		if strings.HasPrefix(name, prefix) {
+		if strings.HasSuffix(name, suffix) {
 			return filepath.Join(dir, name)
 		}
 	}
-	t.Fatalf("no %s under %s", prefix, dir)
+	t.Fatalf("no %s under %s", suffix, dir)
 	return ""
 }
 
