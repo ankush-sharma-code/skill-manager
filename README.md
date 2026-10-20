@@ -2,7 +2,7 @@
 
 Skill Manager keeps one copy of each agent skill at `~/.skills/<name>/SKILL.md`.
 
-This repository has the skill name rules and the `SKILL.md` reader. Names match `^[a-z0-9][a-z0-9-]{0,63}$`. The reader keeps unknown frontmatter keys and hashes a skill tree from sorted path, permission, and content.
+This repository has the skill name rules and the `SKILL.md` reader. Names match `^[a-z0-9][a-z0-9-]{0,63}$`. The reader keeps unknown frontmatter keys. The tree hash uses the sorted path, the permission, and the content.
 
 ## Run the tests
 
