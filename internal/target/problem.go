@@ -82,15 +82,6 @@ func readsPresent(ids []TargetID, present map[TargetID]bool) bool {
 	return false
 }
 
-// ValidateRoot reports whether a resolved root is safe to manage.
-// The stub accepts every root; checks land with the root-guard fix.
-func ValidateRoot(resolved, home, repo string, custom bool) error {
-	if resolved == "" && home == "" && repo == "" && !custom {
-		return nil
-	}
-	return nil
-}
-
 // Inspect observes a target and returns problems found in the tree.
 func Inspect(fsys ports.FS, t domain.Target, repoRoot string) (Result, error) {
 	return inspect(fsys, t, repoRoot)

@@ -16,7 +16,7 @@ import (
 const maxTreeDepth = 32
 
 func inspect(fsys ports.FS, t domain.Target, repoRoot string) (Result, error) {
-	root, err := usableRoot(fsys, t.Root)
+	root, err := openRoot(fsys, t, repoRoot)
 	if err != nil {
 		if errors.Is(err, fs.ErrNotExist) {
 			return Result{}, nil
@@ -50,7 +50,7 @@ func classify(fsys ports.FS, t domain.Target, repoRoot, name string) (domain.Obs
 	if err != nil {
 		return domain.Observed{}, err
 	}
-	root, err := usableRoot(fsys, t.Root)
+	root, err := openRoot(fsys, t, repoRoot)
 	if errors.Is(err, fs.ErrNotExist) {
 		return missing(t.ID, parsed), nil
 	}
