@@ -517,8 +517,11 @@ func skillFromStageID(id string) (string, bool) {
 }
 
 // Recover finishes or undoes a torn publish left under .stage.
-// A pair with both the new tree and the old tree, and no live skill, is rolled forward.
-// A new tree beside a live skill is discarded. An old tree with no live skill is restored.
+// A pair with both the new tree and the old tree, and no live skill, is rolled forward
+// only when the new tree is a real directory that contains SKILL.md.
+// A new tree beside a live skill is removed. An old tree with no live skill is restored
+// on the same rule. Anything else is quarantined under .stage/rejected, or deleted when
+// it is an orphan .new from a crashed first publish. Symlinks are never followed.
 func (r *Repo) Recover(ctx context.Context) error {
 	if err := ctx.Err(); err != nil {
 		return err
@@ -541,10 +544,19 @@ func (r *Repo) Recover(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+	r.problems = nil
 	pairs := map[string]*stagePair{}
 	var ids []string
+	var junk []string
 	for _, ent := range ents {
 		name := ent.Name()
+		if name == "rejected" {
+			continue
+		}
+		full := filepath.Join(stage, name)
+		if _, err := r.fs.Lstat(full); err != nil {
+			return err
+		}
 		var id, kind string
 		switch {
 		case strings.HasSuffix(name, ".new"):
@@ -552,9 +564,11 @@ func (r *Repo) Recover(ctx context.Context) error {
 		case strings.HasSuffix(name, ".old"):
 			id, kind = strings.TrimSuffix(name, ".old"), "old"
 		default:
+			junk = append(junk, name)
 			continue
 		}
 		if _, ok := skillFromStageID(id); !ok {
+			junk = append(junk, name)
 			continue
 		}
 		pair := pairs[id]
@@ -563,7 +577,6 @@ func (r *Repo) Recover(ctx context.Context) error {
 			pairs[id] = pair
 			ids = append(ids, id)
 		}
-		full := filepath.Join(stage, name)
 		if kind == "new" {
 			pair.newPath = full
 		} else {
@@ -577,32 +590,167 @@ func (r *Repo) Recover(ctx context.Context) error {
 			return err
 		}
 	}
+	sort.Strings(junk)
+	for _, name := range junk {
+		if err := r.quarantine(filepath.Join(stage, name), ""); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
 func (r *Repo) recoverOne(name string, pair *stagePair) error {
 	live := filepath.Join(r.root, name)
+	if !r.withinRoot(live) {
+		return fmt.Errorf("stage entry escapes the root: %s", name)
+	}
 	info, err := r.fs.Lstat(live)
 	if err != nil && !errors.Is(err, fs.ErrNotExist) {
 		return err
 	}
-	liveOK := err == nil && info.IsDir() && info.Mode()&fs.ModeSymlink == 0
+	liveOK := err == nil && realDir(info)
+	newOK, err := r.promotable(pair.newPath)
+	if err != nil {
+		return err
+	}
+	oldOK, err := r.promotable(pair.oldPath)
+	if err != nil {
+		return err
+	}
 	switch {
-	case pair.newPath != "" && pair.oldPath != "" && !liveOK:
+	case newOK && pair.oldPath != "" && !liveOK:
 		if err := r.fs.Rename(pair.newPath, live); err != nil {
 			return err
 		}
-		return r.fs.RemoveAll(pair.oldPath)
-	case pair.oldPath != "" && !liveOK:
+		return r.dropStage(pair.oldPath, name, true)
+	case oldOK && !liveOK:
+		if pair.newPath != "" {
+			if err := r.dropStage(pair.newPath, name, false); err != nil {
+				return err
+			}
+		}
 		return r.fs.Rename(pair.oldPath, live)
 	case pair.newPath != "" && liveOK:
-		r.removeQuiet(pair.newPath)
+		if err := r.dropStage(pair.newPath, name, false); err != nil {
+			return err
+		}
+		if pair.oldPath != "" {
+			return r.dropStage(pair.oldPath, name, true)
+		}
 		return nil
 	case pair.oldPath != "" && liveOK:
-		return r.fs.RemoveAll(pair.oldPath)
+		return r.dropStage(pair.oldPath, name, true)
+	case pair.newPath != "":
+		if err := r.dropStage(pair.newPath, name, false); err != nil {
+			return err
+		}
+		if pair.oldPath != "" {
+			return r.dropStage(pair.oldPath, name, false)
+		}
+		return nil
+	case pair.oldPath != "":
+		return r.dropStage(pair.oldPath, name, false)
 	default:
 		return nil
 	}
+}
+
+func realDir(info fs.FileInfo) bool {
+	return info != nil && info.IsDir() && info.Mode()&fs.ModeSymlink == 0
+}
+
+// promotable reports whether path is a real directory inside the root that contains a regular SKILL.md.
+func (r *Repo) promotable(path string) (bool, error) {
+	if path == "" {
+		return false, nil
+	}
+	if !r.withinRoot(path) {
+		return false, nil
+	}
+	info, err := r.fs.Lstat(path)
+	if err != nil {
+		return false, err
+	}
+	if !realDir(info) {
+		return false, nil
+	}
+	skill, err := r.fs.Lstat(filepath.Join(path, "SKILL.md"))
+	if errors.Is(err, fs.ErrNotExist) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	if skill.Mode()&fs.ModeSymlink != 0 || !skill.Mode().IsRegular() {
+		return false, nil
+	}
+	return true, nil
+}
+
+func (r *Repo) withinRoot(path string) bool {
+	rel, err := filepath.Rel(r.root, path)
+	if err != nil {
+		return false
+	}
+	return rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator))
+}
+
+// dropStage removes a real directory. A symlink or other non-directory is moved to .stage/rejected.
+func (r *Repo) dropStage(path, name string, removeReal bool) error {
+	info, err := r.fs.Lstat(path)
+	if errors.Is(err, fs.ErrNotExist) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	if realDir(info) && (removeReal || r.withinRoot(path)) {
+		return r.fs.RemoveAll(path)
+	}
+	return r.quarantine(path, name)
+}
+
+func (r *Repo) quarantine(path, name string) error {
+	info, err := r.fs.Lstat(path)
+	if errors.Is(err, fs.ErrNotExist) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	rejected := filepath.Join(r.root, ".stage", "rejected")
+	if err := r.ensureRealDir(rejected); err != nil {
+		return err
+	}
+	base := filepath.Base(path)
+	dest := filepath.Join(rejected, base)
+	for n := 2; n < 10; n++ {
+		_, err := r.fs.Lstat(dest)
+		if errors.Is(err, fs.ErrNotExist) {
+			break
+		}
+		if err != nil {
+			return err
+		}
+		dest = filepath.Join(rejected, fmt.Sprintf("%s-%d", base, n))
+	}
+	if err := r.fs.Rename(path, dest); err != nil {
+		return err
+	}
+	why := errors.New("not a real skill directory")
+	if info.Mode()&fs.ModeSymlink != 0 {
+		why = ErrSymlink
+	}
+	r.problems = append(r.problems, ports.SkillProblem{
+		Name: domain.SkillName(name),
+		Err:  fmt.Errorf("quarantined %s: %w", base, why),
+	})
+	if r.logf != nil {
+		r.logf("quarantined %s: %v", dest, why)
+	} else {
+		log.Printf("quarantined %s: %v", dest, why)
+	}
+	return nil
 }
 
 func (r *Repo) removeQuiet(path string) {
