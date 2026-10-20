@@ -43,10 +43,19 @@ func TestRecoverQuarantinesOutsideSymlink(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(outside, "SKILL.md")); err != nil {
 		t.Fatalf("outside target touched: %v", err)
 	}
-	rejected := filepath.Join(root, ".stage", "rejected", "a-0123456789abcdef.old")
-	fi, err := os.Lstat(rejected)
-	if err != nil || fi.Mode()&fs.ModeSymlink == 0 {
-		t.Fatalf("quarantine = %v %v", fi, err)
+	ents, err := os.ReadDir(filepath.Join(root, ".stage", "rejected"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var quarantined string
+	for _, ent := range ents {
+		if strings.HasPrefix(ent.Name(), "a-0123456789abcdef.old-") {
+			quarantined = filepath.Join(root, ".stage", "rejected", ent.Name())
+		}
+	}
+	fi, err := os.Lstat(quarantined)
+	if quarantined == "" || err != nil || fi.Mode()&fs.ModeSymlink == 0 {
+		t.Fatalf("quarantine = %q %v %v", quarantined, fi, err)
 	}
 	probs := store.Problems()
 	if len(probs) != 1 || probs[0].Name != "a" || probs[0].Err == nil {

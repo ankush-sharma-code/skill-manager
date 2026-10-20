@@ -759,18 +759,8 @@ func (r *Repo) quarantine(path, name string) error {
 		return err
 	}
 	base := filepath.Base(path)
-	dest := filepath.Join(rejected, base)
-	for n := 2; n < 10; n++ {
-		_, err := r.fs.Lstat(dest)
-		if errors.Is(err, fs.ErrNotExist) {
-			break
-		}
-		if err != nil {
-			return err
-		}
-		dest = filepath.Join(rejected, fmt.Sprintf("%s-%d", base, n))
-	}
-	if err := r.fs.Rename(path, dest); err != nil {
+	dest, err := r.moveRejected(path, rejected, base)
+	if err != nil {
 		return err
 	}
 	why := errors.New("not a real skill directory")
@@ -787,6 +777,52 @@ func (r *Repo) quarantine(path, name string) error {
 		log.Printf("quarantined %s: %v", dest, why)
 	}
 	return nil
+}
+
+// moveRejected renames path into dir under a clock and rand suffix.
+// An existing destination is left in place and the move is tried again.
+func (r *Repo) moveRejected(path, dir, base string) (string, error) {
+	var last error
+	for attempt := 0; attempt < 16; attempt++ {
+		dest, err := r.rejectedPath(dir, base)
+		if err != nil {
+			return "", err
+		}
+		err = r.fs.Rename(path, dest)
+		if err == nil {
+			return dest, nil
+		}
+		if !errors.Is(err, fs.ErrExist) {
+			return "", err
+		}
+		last = err
+	}
+	if last == nil {
+		last = fs.ErrExist
+	}
+	return "", last
+}
+
+// rejectedPath builds <base>-<unix nano>-<rand> and refuses a name that already exists.
+func (r *Repo) rejectedPath(dir, base string) (string, error) {
+	stamp := strconv.FormatInt(r.clock.Now().UTC().UnixNano(), 10)
+	var last string
+	for attempt := 0; attempt < 16; attempt++ {
+		suffix, err := r.randomHex(8)
+		if err != nil {
+			return "", err
+		}
+		dest := filepath.Join(dir, base+"-"+stamp+"-"+suffix)
+		last = dest
+		_, err = r.fs.Lstat(dest)
+		if errors.Is(err, fs.ErrNotExist) {
+			return dest, nil
+		}
+		if err != nil {
+			return "", err
+		}
+	}
+	return "", fmt.Errorf("rejected name still exists: %s", last)
 }
 
 func (r *Repo) removeQuiet(path string) {
