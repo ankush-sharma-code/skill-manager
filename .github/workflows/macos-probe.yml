@@ -1,0 +1,35 @@
+name: macos-probe
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - docs/targets.md
+      - .github/workflows/macos-probe.yml
+      - .github/scripts/macos-probe.py
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    name: skill and log paths
+    runs-on: macos-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install CLIs and probe skill paths
+        shell: bash
+        run: python3 .github/scripts/macos-probe.py
+
+      - name: Upload probe report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-probe-report
+          path: |
+            probe-report.md
+            probe-report.json
+          if-no-files-found: error
