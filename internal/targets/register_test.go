@@ -1,4 +1,4 @@
-package target_test
+package targets_test
 
 import (
 	"errors"
@@ -9,7 +9,7 @@ import (
 
 	"github.com/ankush-sharma-code/skill-manager/internal/domain"
 	"github.com/ankush-sharma-code/skill-manager/internal/ports"
-	"github.com/ankush-sharma-code/skill-manager/internal/target"
+	"github.com/ankush-sharma-code/skill-manager/internal/targets"
 )
 
 func TestNoSkillRegisteredTwiceAcrossOverlappingRoots(t *testing.T) {
@@ -28,7 +28,7 @@ func TestNoSkillRegisteredTwiceAcrossOverlappingRoots(t *testing.T) {
 			mustMkdir(t, fsys, filepath.Join(home, ".agents"))
 			mustSymlink(t, fsys, claudeSkills, filepath.Join(home, ".agents", "skills"))
 
-			got, _, err := target.Propose(fsys, home)
+			got, _, err := targets.Propose(fsys, home)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -46,7 +46,7 @@ func TestNoSkillRegisteredTwiceAcrossOverlappingRoots(t *testing.T) {
 			if followPath(t, fsys, got[0].Root) != claudeSkills {
 				t.Fatalf("registered root = %s", got[0].Root)
 			}
-			paths, err := target.SlotPaths(fsys, got, "demo")
+			paths, err := targets.SlotPaths(fsys, got, "demo")
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -66,7 +66,7 @@ func TestAgentsSkillsIsOptInOnly(t *testing.T) {
 	mustMkdir(t, fsys, filepath.Join(home, ".codex", "skills"))
 	mustMkdir(t, fsys, filepath.Join(home, ".agents", "skills"))
 	mustMkdir(t, fsys, filepath.Join(home, ".claude"))
-	got, _, err := target.Propose(fsys, home)
+	got, _, err := targets.Propose(fsys, home)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -82,14 +82,14 @@ func TestAgentsSkillsIsOptInOnly(t *testing.T) {
 	if codex.Mode != domain.SyncSymlink || codex.Root != filepath.Join(home, ".codex", "skills") {
 		t.Fatalf("codex = %+v", codex)
 	}
-	opt, err := target.OptIn("agents", filepath.Join(home, ".agents", "skills"), domain.SyncCopy)
+	opt, err := targets.OptIn("agents", filepath.Join(home, ".agents", "skills"), domain.SyncCopy)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if opt.Kind != domain.TargetCustom || !opt.Enabled || opt.Root != filepath.Join(home, ".agents", "skills") {
 		t.Fatalf("opt-in = %+v", opt)
 	}
-	again, _, err := target.Propose(fsys, home)
+	again, _, err := targets.Propose(fsys, home)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -101,22 +101,22 @@ func TestAgentsSkillsIsOptInOnly(t *testing.T) {
 func TestProposeAndOptInRejectBadPaths(t *testing.T) {
 	t.Parallel()
 	fsys, _ := backends()[0].open(t)
-	if _, _, err := target.Propose(fsys, "relative"); err == nil {
+	if _, _, err := targets.Propose(fsys, "relative"); err == nil {
 		t.Fatal("relative home was accepted")
 	}
-	if _, err := target.OptIn("agents", "relative/skills", domain.SyncCopy); err == nil {
+	if _, err := targets.OptIn("agents", "relative/skills", domain.SyncCopy); err == nil {
 		t.Fatal("relative opt-in root was accepted")
 	}
-	if _, err := target.OptIn("../x", "/tmp/skills", domain.SyncCopy); err == nil {
+	if _, err := targets.OptIn("../x", "/tmp/skills", domain.SyncCopy); err == nil {
 		t.Fatal("escaping opt-in id was accepted")
 	}
-	if _, err := target.OptIn("agents", "/tmp/skills", domain.SyncMode("link")); err == nil {
+	if _, err := targets.OptIn("agents", "/tmp/skills", domain.SyncMode("link")); err == nil {
 		t.Fatal("bad mode was accepted")
 	}
-	if _, err := target.ClaudeProject("relative"); err == nil {
+	if _, err := targets.ClaudeProject("relative"); err == nil {
 		t.Fatal("relative project was accepted")
 	}
-	if _, err := target.SlotPaths(fsys, nil, "BAD"); err == nil {
+	if _, err := targets.SlotPaths(fsys, nil, "BAD"); err == nil {
 		t.Fatal("bad skill name was accepted")
 	}
 }
@@ -158,18 +158,18 @@ func TestSlotPathsCollapseDistinctRoots(t *testing.T) {
 	link := filepath.Join(home, "link")
 	mustMkdir(t, fsys, home)
 	mustSymlink(t, fsys, shared, link)
-	targets := []domain.Target{
+	list := []domain.Target{
 		{ID: "a", Root: shared},
 		{ID: "b", Root: link},
 	}
-	paths, err := target.SlotPaths(fsys, targets, "demo")
+	paths, err := targets.SlotPaths(fsys, list, "demo")
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(paths) != 1 {
 		t.Fatalf("paths = %v", paths)
 	}
-	if _, err := target.SlotPaths(fsys, targets, "../demo"); !errors.Is(err, domain.ErrInvalidName) {
+	if _, err := targets.SlotPaths(fsys, list, "../demo"); !errors.Is(err, domain.ErrInvalidName) {
 		t.Fatalf("escape err = %v", err)
 	}
 }

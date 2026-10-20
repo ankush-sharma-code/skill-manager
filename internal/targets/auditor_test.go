@@ -1,4 +1,4 @@
-package target_test
+package targets_test
 
 import (
 	"os"
@@ -10,7 +10,7 @@ import (
 	"github.com/ankush-sharma-code/skill-manager/internal/domain"
 	"github.com/ankush-sharma-code/skill-manager/internal/ports/fake"
 	"github.com/ankush-sharma-code/skill-manager/internal/ports/osfs"
-	"github.com/ankush-sharma-code/skill-manager/internal/target"
+	"github.com/ankush-sharma-code/skill-manager/internal/targets"
 )
 
 func mk(t *testing.T, p ...string) string {
@@ -29,8 +29,8 @@ func TestAuditorDedupeParentSymlink(t *testing.T) {
 		t.Fatal(err)
 	}
 	fsys := osfs.New()
-	ts, _, _ := target.Propose(fsys, home)
-	paths, _ := target.SlotPaths(fsys, []domain.Target{
+	ts, _, _ := targets.Propose(fsys, home)
+	paths, _ := targets.SlotPaths(fsys, []domain.Target{
 		{ID: "claude-user", Root: filepath.Join(home, ".claude", "skills")},
 		{ID: "cursor-user", Root: filepath.Join(home, ".cursor", "skills")},
 	}, "a")
@@ -48,11 +48,14 @@ func TestAuditorObserveFIFODoesNotHang(t *testing.T) {
 	}
 	done := make(chan error, 1)
 	go func() {
-		_, err := target.NewCodex("/r").Observe(osfs.New(), domain.Target{ID: "t", Root: root})
+		_, err := targets.NewCodex("/r").Observe(osfs.New(), domain.Target{ID: "t", Root: root})
 		done <- err
 	}()
 	select {
-	case <-done:
+	case err := <-done:
+		if err != nil {
+			t.Fatal(err)
+		}
 	case <-time.After(2 * time.Second):
 		t.Fatal("Observe hangs on a FIFO inside a target skill dir (ReadFile on non-regular file)")
 	}
@@ -62,7 +65,7 @@ func TestAuditorObserveCaseAlias(t *testing.T) {
 	fsys := fake.NewCaseFolding()
 	_ = fsys.MkdirAll("/t/Foo", 0o755)
 	_ = fsys.WriteFileAtomic("/t/Foo/SKILL.md", []byte("user"), 0o644)
-	obs, err := target.NewCursor("/r").Observe(fsys, domain.Target{ID: "t", Root: "/t"})
+	obs, err := targets.NewCursor("/r").Observe(fsys, domain.Target{ID: "t", Root: "/t"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -73,19 +76,19 @@ func TestAuditorObserveCaseAlias(t *testing.T) {
 
 func TestAuditorCustomRootGuards(t *testing.T) {
 	for _, root := range []string{"/", "/home/u/.skills", "/home/u/.skills/sub", "/x/../home/u/.skills"} {
-		if _, err := target.OptIn("pi", root, domain.SyncCopy); err == nil {
+		if _, err := targets.OptIn("pi", root, domain.SyncCopy); err == nil {
 			t.Errorf("OptIn accepted dangerous root %q (filesystem root or inside the repo)", root)
 		}
 	}
 	for _, root := range []string{"~/x", "$HOME/x", "rel/x", ""} {
-		if _, err := target.OptIn("pi", root, domain.SyncCopy); err == nil {
+		if _, err := targets.OptIn("pi", root, domain.SyncCopy); err == nil {
 			t.Errorf("OptIn accepted non-absolute %q", root)
 		}
 	}
 }
 
 func TestAuditorCustomSymlinkConsistency(t *testing.T) {
-	c := target.NewCustom("/r")
+	c := targets.NewCustom("/r")
 	if c.Supports(domain.SyncSymlink) != c.SupportsSymlink() {
 		t.Errorf("Custom: Supports(symlink)=%v but SupportsSymlink()=%v", c.Supports(domain.SyncSymlink), c.SupportsSymlink())
 	}
@@ -96,7 +99,7 @@ func TestAuditorObserveRootIsRepo(t *testing.T) {
 	repo := mk(t, home, ".skills")
 	mk(t, repo, "a")
 	_ = os.Symlink(repo, filepath.Join(home, "tgt"))
-	_, err := target.NewCursor(repo).Observe(osfs.New(), domain.Target{ID: "t", Root: filepath.Join(home, "tgt")})
+	_, err := targets.NewCursor(repo).Observe(osfs.New(), domain.Target{ID: "t", Root: filepath.Join(home, "tgt")})
 	if err == nil {
 		t.Error("Observe accepted a target root that resolves to the repo root (later sync would write into ~/.skills)")
 	}
@@ -115,7 +118,7 @@ func TestAuditorLinkStates(t *testing.T) {
 	_ = os.Symlink(filepath.Join(home, "nope"), filepath.Join(root, "d"))
 	_ = os.Symlink(filepath.Join(repo, "..", ".skills", "a"), filepath.Join(root, "e"))
 	got := map[domain.SkillName]domain.SlotState{}
-	obs, err := target.NewCodex(repo).Observe(osfs.New(), domain.Target{ID: "t", Root: root})
+	obs, err := targets.NewCodex(repo).Observe(osfs.New(), domain.Target{ID: "t", Root: root})
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -1,11 +1,11 @@
-package target_test
+package targets_test
 
 import (
 	"path/filepath"
 	"testing"
 
 	"github.com/ankush-sharma-code/skill-manager/internal/domain"
-	"github.com/ankush-sharma-code/skill-manager/internal/target"
+	"github.com/ankush-sharma-code/skill-manager/internal/targets"
 )
 
 func TestCopyDrift(t *testing.T) {
@@ -13,16 +13,16 @@ func TestCopyDrift(t *testing.T) {
 	repoDigest := domain.Digest{1}
 	ledger := domain.Digest{2}
 	third := domain.Digest{3}
-	if got := target.CopyDrift(repoDigest, repoDigest, &ledger); got != target.DriftNone {
+	if got := targets.CopyDrift(repoDigest, repoDigest, &ledger); got != targets.DriftNone {
 		t.Fatalf("match = %s", got)
 	}
-	if got := target.CopyDrift(ledger, repoDigest, &ledger); got != target.DriftStale {
+	if got := targets.CopyDrift(ledger, repoDigest, &ledger); got != targets.DriftStale {
 		t.Fatalf("stale = %s", got)
 	}
-	if got := target.CopyDrift(third, repoDigest, &ledger); got != target.DriftConflict {
+	if got := targets.CopyDrift(third, repoDigest, &ledger); got != targets.DriftConflict {
 		t.Fatalf("conflict = %s", got)
 	}
-	if got := target.CopyDrift(third, repoDigest, nil); got != target.DriftForeign {
+	if got := targets.CopyDrift(third, repoDigest, nil); got != targets.DriftForeign {
 		t.Fatalf("foreign = %s", got)
 	}
 }
@@ -35,7 +35,7 @@ func TestCursorObservedDigestDrifts(t *testing.T) {
 	mustMkdir(t, fsys, demo)
 	mustWrite(t, fsys, filepath.Join(demo, "SKILL.md"), fixture(t, "SKILL.md"), 0o644)
 	mustWrite(t, fsys, filepath.Join(demo, "notes.txt"), fixture(t, "notes.txt"), 0o644)
-	ad := target.NewCursor(filepath.Join(home, ".skills"))
+	ad := targets.NewCursor(filepath.Join(home, ".skills"))
 	got, err := ad.Observe(fsys, domain.Target{ID: "cursor-user", Root: root})
 	if err != nil {
 		t.Fatal(err)
@@ -48,7 +48,7 @@ func TestCursorObservedDigestDrifts(t *testing.T) {
 	if first != want || first == (domain.Digest{}) {
 		t.Fatalf("digest = %x, want %x", first, want)
 	}
-	if target.CopyDrift(first, first, nil) != target.DriftNone {
+	if targets.CopyDrift(first, first, nil) != targets.DriftNone {
 		t.Fatal("matching copy was drift")
 	}
 	mustWrite(t, fsys, filepath.Join(demo, "notes.txt"), []byte("edited\n"), 0o644)
@@ -60,11 +60,11 @@ func TestCursorObservedDigestDrifts(t *testing.T) {
 	if second == first {
 		t.Fatal("digest ignored a content change")
 	}
-	if target.CopyDrift(first, second, &first) != target.DriftStale {
+	if targets.CopyDrift(first, second, &first) != targets.DriftStale {
 		t.Fatal("ledger match was not stale")
 	}
 	edited := domain.Digest{9}
-	if target.CopyDrift(edited, second, &first) != target.DriftConflict {
+	if targets.CopyDrift(edited, second, &first) != targets.DriftConflict {
 		t.Fatal("diverged digests were not a conflict")
 	}
 }

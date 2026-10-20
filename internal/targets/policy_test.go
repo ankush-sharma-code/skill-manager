@@ -1,4 +1,4 @@
-package target_test
+package targets_test
 
 import (
 	"os"
@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	"github.com/ankush-sharma-code/skill-manager/internal/domain"
-	"github.com/ankush-sharma-code/skill-manager/internal/target"
+	"github.com/ankush-sharma-code/skill-manager/internal/targets"
 )
 
 func TestSupportsSymlinkFollowsTargetsDoc(t *testing.T) {
@@ -44,11 +44,11 @@ func TestSupportsSymlinkFollowsTargetsDoc(t *testing.T) {
 
 	home := "/Users/ada"
 	repo := filepath.Join(home, ".skills")
-	checkUser(t, rows["claude-user"], target.NewClaude(repo), home)
-	checkUser(t, rows["cursor-user"], target.NewCursor(repo), home)
-	checkUser(t, rows["codex-user"], target.NewCodex(repo), home)
+	checkUser(t, rows["claude-user"], targets.NewClaude(repo), home)
+	checkUser(t, rows["cursor-user"], targets.NewCursor(repo), home)
+	checkUser(t, rows["codex-user"], targets.NewCodex(repo), home)
 
-	custom := target.NewCustom(repo)
+	custom := targets.NewCustom(repo)
 	if custom.SupportsSymlink() || custom.Kind() != domain.TargetCustom || len(custom.DefaultTargets(home)) != 0 {
 		t.Fatal("custom has no verified symlink support and no default root")
 	}
@@ -56,7 +56,7 @@ func TestSupportsSymlinkFollowsTargetsDoc(t *testing.T) {
 		t.Fatal("custom symlink support is unverified")
 	}
 
-	project, err := target.ClaudeProject(filepath.Join(home, "repo"))
+	project, err := targets.ClaudeProject(filepath.Join(home, "repo"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -85,12 +85,12 @@ func TestValidateSkill(t *testing.T) {
 	}
 	bad := domain.Skill{Name: "NOPE"}
 	adapters := []interface {
-		Validate(domain.Skill) []target.Issue
+		Validate(domain.Skill) []targets.Issue
 	}{
-		target.NewClaude(repo),
-		target.NewCursor(repo),
-		target.NewCodex(repo),
-		target.NewCustom(repo),
+		targets.NewClaude(repo),
+		targets.NewCursor(repo),
+		targets.NewCodex(repo),
+		targets.NewCustom(repo),
 	}
 	for _, ad := range adapters {
 		if issues := ad.Validate(good); len(issues) != 0 {

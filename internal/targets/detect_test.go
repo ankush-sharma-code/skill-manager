@@ -1,4 +1,4 @@
-package target_test
+package targets_test
 
 import (
 	"path/filepath"
@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"github.com/ankush-sharma-code/skill-manager/internal/domain"
-	"github.com/ankush-sharma-code/skill-manager/internal/target"
+	"github.com/ankush-sharma-code/skill-manager/internal/targets"
 )
 
 func TestDetectCodexAgentsSuggestsCustomTarget(t *testing.T) {
@@ -20,17 +20,17 @@ func TestDetectCodexAgentsSuggestsCustomTarget(t *testing.T) {
 			newPath := filepath.Join(home, ".agents", "skills")
 			mustMkdir(t, fsys, oldPath)
 			mustMkdir(t, fsys, newPath)
-			det := target.NewCodex(filepath.Join(home, ".skills")).Detect(fsys, home)
+			det := targets.NewCodex(filepath.Join(home, ".skills")).Detect(fsys, home)
 			if !det.Installed || det.Moved || det.From != "" || det.To != "" || strings.Contains(det.Message, "moved") {
 				t.Fatalf("detect = %+v", det)
 			}
 			if len(det.Roots) != 1 || det.Roots[0] != oldPath {
 				t.Fatalf("roots = %v", det.Roots)
 			}
-			if !problemHas(det.Problems, target.LevelInfo, newPath) || !problemTextHas(det.Problems, "custom") {
+			if !problemHas(det.Problems, targets.LevelInfo, newPath) || !problemTextHas(det.Problems, "custom") {
 				t.Fatalf("problems = %+v", det.Problems)
 			}
-			got, problems, err := target.Propose(fsys, home)
+			got, problems, err := targets.Propose(fsys, home)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -48,7 +48,7 @@ func TestDetectCodexAgentsSuggestsCustomTarget(t *testing.T) {
 			if codex.Root != oldPath || codex.Mode != domain.SyncSymlink {
 				t.Fatalf("codex = %+v", codex)
 			}
-			if !problemHas(problems, target.LevelInfo, newPath) || !problemTextHas(problems, "custom") {
+			if !problemHas(problems, targets.LevelInfo, newPath) || !problemTextHas(problems, "custom") {
 				t.Fatalf("propose problems = %+v", problems)
 			}
 		})
@@ -58,7 +58,7 @@ func TestDetectCodexAgentsSuggestsCustomTarget(t *testing.T) {
 func TestDetectCodexLegacyAndNewOnly(t *testing.T) {
 	t.Parallel()
 	fsys, home := backends()[0].open(t)
-	ad := target.NewCodex(filepath.Join(home, ".skills"))
+	ad := targets.NewCodex(filepath.Join(home, ".skills"))
 
 	mustMkdir(t, fsys, filepath.Join(home, ".codex", "skills"))
 	legacy := ad.Detect(fsys, home)
@@ -72,7 +72,7 @@ func TestDetectCodexLegacyAndNewOnly(t *testing.T) {
 	onlyNew, homeNew := backends()[0].open(t)
 	mustMkdir(t, onlyNew, filepath.Join(homeNew, ".codex"))
 	mustMkdir(t, onlyNew, filepath.Join(homeNew, ".agents", "skills"))
-	moved := target.NewCodex(filepath.Join(homeNew, ".skills")).Detect(onlyNew, homeNew)
+	moved := targets.NewCodex(filepath.Join(homeNew, ".skills")).Detect(onlyNew, homeNew)
 	if !moved.Installed || moved.Moved || strings.Contains(moved.Message, "moved") {
 		t.Fatalf("new only = %+v", moved)
 	}
@@ -80,13 +80,13 @@ func TestDetectCodexLegacyAndNewOnly(t *testing.T) {
 	if len(moved.Roots) != 1 || moved.Roots[0] != filepath.Join(homeNew, ".codex", "skills") {
 		t.Fatalf("new only roots = %v", moved.Roots)
 	}
-	if !problemHas(moved.Problems, target.LevelInfo, agents) || !problemTextHas(moved.Problems, "custom") {
+	if !problemHas(moved.Problems, targets.LevelInfo, agents) || !problemTextHas(moved.Problems, "custom") {
 		t.Fatalf("new only problems = %+v", moved.Problems)
 	}
 
 	agentsOnly, homeAgents := backends()[0].open(t)
 	mustMkdir(t, agentsOnly, filepath.Join(homeAgents, ".agents", "skills"))
-	absent := target.NewCodex(filepath.Join(homeAgents, ".skills")).Detect(agentsOnly, homeAgents)
+	absent := targets.NewCodex(filepath.Join(homeAgents, ".skills")).Detect(agentsOnly, homeAgents)
 	if absent.Installed || absent.Moved {
 		t.Fatalf("agents without codex = %+v", absent)
 	}
@@ -102,7 +102,7 @@ func TestCursorStaysWhenItMayReadClaudeSkills(t *testing.T) {
 			mustMkdir(t, fsys, filepath.Join(home, ".cursor"))
 			mustMkdir(t, fsys, filepath.Join(home, ".claude", "skills"))
 			mustWrite(t, fsys, filepath.Join(home, ".cursor", "cli-config.json"), []byte("{}\n"), 0o644)
-			cur := target.NewCursor(filepath.Join(home, ".skills"))
+			cur := targets.NewCursor(filepath.Join(home, ".skills"))
 			if len(cur.AlsoReads()) != 0 {
 				t.Fatalf("AlsoReads = %v", cur.AlsoReads())
 			}
@@ -114,10 +114,10 @@ func TestCursorStaysWhenItMayReadClaudeSkills(t *testing.T) {
 				t.Fatalf("roots = %v", det.Roots)
 			}
 			const phrase = "may also be read via ~/.claude/skills"
-			if !problemHas(det.Problems, target.LevelInfo, phrase) {
+			if !problemHas(det.Problems, targets.LevelInfo, phrase) {
 				t.Fatalf("detect problems = %+v", det.Problems)
 			}
-			got, problems, err := target.Propose(fsys, home)
+			got, problems, err := targets.Propose(fsys, home)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -136,7 +136,7 @@ func TestCursorStaysWhenItMayReadClaudeSkills(t *testing.T) {
 			if !sawCursor || !sawClaude {
 				t.Fatalf("propose = %+v", got)
 			}
-			if !problemHas(problems, target.LevelInfo, phrase) {
+			if !problemHas(problems, targets.LevelInfo, phrase) {
 				t.Fatalf("propose problems = %+v", problems)
 			}
 		})
@@ -147,7 +147,7 @@ func TestCursorManagedCopyWhenClaudeSkillsAbsent(t *testing.T) {
 	t.Parallel()
 	fsys, home := backends()[0].open(t)
 	mustMkdir(t, fsys, filepath.Join(home, ".cursor"))
-	cur := target.NewCursor(filepath.Join(home, ".skills"))
+	cur := targets.NewCursor(filepath.Join(home, ".skills"))
 	if cur.SupportsSymlink() || len(cur.AlsoReads()) != 0 {
 		t.Fatal("cursor should manage a copy and AlsoReads stays empty")
 	}
@@ -158,7 +158,7 @@ func TestCursorManagedCopyWhenClaudeSkillsAbsent(t *testing.T) {
 	if !det.Installed || det.Skip {
 		t.Fatalf("detect = %+v", det)
 	}
-	got, _, err := target.Propose(fsys, home)
+	got, _, err := targets.Propose(fsys, home)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -174,7 +174,7 @@ func TestClaudeDefaultsToCopy(t *testing.T) {
 	t.Parallel()
 	fsys, home := backends()[0].open(t)
 	mustMkdir(t, fsys, filepath.Join(home, ".claude"))
-	ad := target.NewClaude(filepath.Join(home, ".skills"))
+	ad := targets.NewClaude(filepath.Join(home, ".skills"))
 	if ad.SupportsSymlink() || ad.Supports(domain.SyncSymlink) || !ad.Supports(domain.SyncCopy) {
 		t.Fatal("claude symlink support is unverified")
 	}
@@ -191,7 +191,7 @@ func TestClaudeDefaultsToCopy(t *testing.T) {
 	if !det.Installed || det.Skip || det.Moved {
 		t.Fatalf("detect = %+v", det)
 	}
-	project, err := target.ClaudeProject(filepath.Join(home, "repo"))
+	project, err := targets.ClaudeProject(filepath.Join(home, "repo"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -206,7 +206,7 @@ func TestClaudeDefaultsToCopy(t *testing.T) {
 func TestCodexSymlinkDefault(t *testing.T) {
 	t.Parallel()
 	home := "/Users/ada"
-	ad := target.NewCodex(filepath.Join(home, ".skills"))
+	ad := targets.NewCodex(filepath.Join(home, ".skills"))
 	if !ad.SupportsSymlink() || !ad.Supports(domain.SyncSymlink) {
 		t.Fatal("codex symlink support is verified")
 	}
@@ -222,16 +222,16 @@ func TestCodexSymlinkDefault(t *testing.T) {
 func TestDetectNotInstalled(t *testing.T) {
 	t.Parallel()
 	fsys, home := backends()[0].open(t)
-	if det := target.NewClaude(home).Detect(fsys, home); det.Installed {
+	if det := targets.NewClaude(home).Detect(fsys, home); det.Installed {
 		t.Fatalf("claude = %+v", det)
 	}
-	if det := target.NewCursor(home).Detect(fsys, home); det.Installed || det.Skip {
+	if det := targets.NewCursor(home).Detect(fsys, home); det.Installed || det.Skip {
 		t.Fatalf("cursor = %+v", det)
 	}
-	if det := target.NewCodex(home).Detect(fsys, home); det.Installed {
+	if det := targets.NewCodex(home).Detect(fsys, home); det.Installed {
 		t.Fatalf("codex = %+v", det)
 	}
-	if det := target.NewCustom(home).Detect(fsys, home); det.Installed || len(target.NewCustom(home).DefaultTargets(home)) != 0 {
+	if det := targets.NewCustom(home).Detect(fsys, home); det.Installed || len(targets.NewCustom(home).DefaultTargets(home)) != 0 {
 		t.Fatalf("custom = %+v", det)
 	}
 }

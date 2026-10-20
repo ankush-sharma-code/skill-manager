@@ -1,4 +1,4 @@
-package target_test
+package targets_test
 
 import (
 	"io/fs"
@@ -12,7 +12,7 @@ import (
 	"github.com/ankush-sharma-code/skill-manager/internal/ports"
 	"github.com/ankush-sharma-code/skill-manager/internal/ports/fake"
 	"github.com/ankush-sharma-code/skill-manager/internal/ports/osfs"
-	"github.com/ankush-sharma-code/skill-manager/internal/target"
+	"github.com/ankush-sharma-code/skill-manager/internal/targets"
 )
 
 func TestAlsoReadsDocumentedEmpty(t *testing.T) {
@@ -28,7 +28,7 @@ func TestAlsoReadsDocumentedEmpty(t *testing.T) {
 	if !strings.Contains(text, "The list is empty") {
 		t.Fatal("AlsoReads must be documented as empty")
 	}
-	if len(target.NewCursor("/r").AlsoReads()) != 0 {
+	if len(targets.NewCursor("/r").AlsoReads()) != 0 {
 		t.Fatal("AlsoReads is not empty")
 	}
 }
@@ -38,14 +38,14 @@ func TestDedupeReadsUsesOnlyTheCapability(t *testing.T) {
 	claude := domain.Target{ID: "claude-user", Root: "/home/u/.claude/skills"}
 	cursor := domain.Target{ID: "cursor-user", Root: "/home/u/.cursor/skills"}
 	both := []domain.Target{claude, cursor}
-	dropped := target.DedupeReads(both, map[target.TargetID][]target.TargetID{
+	dropped := targets.DedupeReads(both, map[targets.TargetID][]targets.TargetID{
 		"cursor-user": {"claude-user"},
 	})
 	if len(dropped) != 1 || dropped[0].ID != "claude-user" {
 		t.Fatalf("non-empty AlsoReads did not drop cursor: %+v", dropped)
 	}
-	kept := target.DedupeReads(both, map[target.TargetID][]target.TargetID{
-		"cursor-user": target.NewCursor("/r").AlsoReads(),
+	kept := targets.DedupeReads(both, map[targets.TargetID][]targets.TargetID{
+		"cursor-user": targets.NewCursor("/r").AlsoReads(),
 	})
 	if len(kept) != 2 {
 		t.Fatalf("empty AlsoReads dropped a target: %+v", kept)
@@ -59,14 +59,14 @@ func TestParentSymlinkAliasIsInfo(t *testing.T) {
 	cursorSkills := filepath.Join(home, ".cursor", "skills")
 	mustMkdir(t, fsys, cursorSkills)
 	mustSymlink(t, fsys, filepath.Join(home, ".cursor"), filepath.Join(home, ".claude"))
-	got, problems := target.DedupeRoots(fsys, []domain.Target{
+	got, problems := targets.DedupeRoots(fsys, []domain.Target{
 		{ID: "claude-user", Root: filepath.Join(home, ".claude", "skills")},
 		{ID: "cursor-user", Root: cursorSkills},
 	})
 	if len(got) != 1 || got[0].ID != "claude-user" {
 		t.Fatalf("kept = %+v", got)
 	}
-	if !problemHas(problems, target.LevelInfo, "alias") || !problemTextHas(problems, "cursor-user") {
+	if !problemHas(problems, targets.LevelInfo, "alias") || !problemTextHas(problems, "cursor-user") {
 		t.Fatalf("problems = %+v", problems)
 	}
 }
@@ -80,18 +80,18 @@ func TestCaseFoldConflictBlocksBothNames(t *testing.T) {
 	if err := fsys.WriteFileAtomic("/t/Foo/SKILL.md", []byte("user"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	res, err := target.Inspect(fsys, domain.Target{ID: "t", Root: "/t"}, "/r")
+	res, err := targets.Inspect(fsys, domain.Target{ID: "t", Root: "/t"}, "/r")
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(res.Observed) == 0 {
 		t.Fatal("Observe dropped Foo")
 	}
-	blocked := target.BlockedNames(res.Problems)
+	blocked := targets.BlockedNames(res.Problems)
 	if !containsAll(blocked, "Foo", "foo") {
 		t.Fatalf("blocked = %v problems = %+v", blocked, res.Problems)
 	}
-	if !problemHas(res.Problems, target.LevelConflict, "Foo") {
+	if !problemHas(res.Problems, targets.LevelConflict, "Foo") {
 		t.Fatalf("problems = %+v", res.Problems)
 	}
 }
@@ -108,7 +108,7 @@ func TestCaseFoldPairBlocksBoth(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	res, err := target.Inspect(fsys, domain.Target{ID: "t", Root: "/t"}, "/r")
+	res, err := targets.Inspect(fsys, domain.Target{ID: "t", Root: "/t"}, "/r")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -119,7 +119,7 @@ func TestCaseFoldPairBlocksBoth(t *testing.T) {
 	if !got["Foo"] || !got["foo"] {
 		t.Fatalf("observed = %+v", res.Observed)
 	}
-	if !containsAll(target.BlockedNames(res.Problems), "Foo", "foo") {
+	if !containsAll(targets.BlockedNames(res.Problems), "Foo", "foo") {
 		t.Fatalf("problems = %+v", res.Problems)
 	}
 }
@@ -145,7 +145,7 @@ func TestIrregularFilesAreProblems(t *testing.T) {
 			filepath.Join(skill, "dev"):  fs.ModeDevice | fs.ModeCharDevice | 0o644,
 		},
 	}
-	res, err := target.Inspect(wrap, domain.Target{ID: "t", Root: root}, "/home/u/.skills")
+	res, err := targets.Inspect(wrap, domain.Target{ID: "t", Root: root}, "/home/u/.skills")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -187,7 +187,7 @@ func TestValidateRootRejectsDangerous(t *testing.T) {
 		{resolved: "/home/u/.agents/skills", custom: true, ok: true},
 	}
 	for _, tc := range cases {
-		err := target.ValidateRoot(tc.resolved, home, repo, tc.custom)
+		err := targets.ValidateRoot(tc.resolved, home, repo, tc.custom)
 		if tc.ok && err != nil {
 			t.Errorf("ValidateRoot(%q, custom=%v) = %v", tc.resolved, tc.custom, err)
 		}
@@ -204,14 +204,14 @@ func TestObserveRejectsDangerousRoots(t *testing.T) {
 		t.Fatal(err)
 	}
 	fsys := osfs.New()
-	cursor := target.NewCursor(repo)
+	cursor := targets.NewCursor(repo)
 	if _, err := cursor.Observe(fsys, domain.Target{ID: "t", Kind: domain.TargetCursorUser, Root: "/"}); err == nil {
 		t.Error("Observe accepted /")
 	}
 	if _, err := cursor.Observe(fsys, domain.Target{ID: "t", Kind: domain.TargetCursorUser, Root: home}); err == nil {
 		t.Error("Observe accepted $HOME")
 	}
-	if _, err := target.NewCustom(repo).Observe(fsys, domain.Target{ID: "pi", Kind: domain.TargetCustom, Root: home}); err == nil {
+	if _, err := targets.NewCustom(repo).Observe(fsys, domain.Target{ID: "pi", Kind: domain.TargetCustom, Root: home}); err == nil {
 		t.Error("custom Observe accepted $HOME")
 	}
 	inside := filepath.Join(repo, "nested")
@@ -231,7 +231,7 @@ func TestObserveRejectsDangerousRoots(t *testing.T) {
 	if _, err := cursor.Observe(fsys, domain.Target{ID: "t", Kind: domain.TargetCursorUser, Root: other}); err == nil {
 		t.Error("Observe accepted a root outside $HOME")
 	}
-	got, err := target.NewCustom(repo).Observe(fsys, domain.Target{ID: "pi", Kind: domain.TargetCustom, Root: other})
+	got, err := targets.NewCustom(repo).Observe(fsys, domain.Target{ID: "pi", Kind: domain.TargetCustom, Root: other})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -242,7 +242,7 @@ func TestObserveRejectsDangerousRoots(t *testing.T) {
 
 func TestOptInRejectsSymlinkMode(t *testing.T) {
 	t.Parallel()
-	if _, err := target.OptIn("pi", "/opt/pi", domain.SyncSymlink); err == nil {
+	if _, err := targets.OptIn("pi", "/opt/pi", domain.SyncSymlink); err == nil {
 		t.Fatal("OptIn accepted symlink mode for an unverified custom target")
 	}
 }
@@ -256,7 +256,7 @@ func TestObserveDepthLimit(t *testing.T) {
 	}
 	mustMkdir(t, fsys, dir)
 	mustWrite(t, fsys, filepath.Join(dir, "SKILL.md"), []byte("x"), 0o644)
-	_, err := target.NewCursor(filepath.Join(home, ".skills")).Observe(fsys, domain.Target{
+	_, err := targets.NewCursor(filepath.Join(home, ".skills")).Observe(fsys, domain.Target{
 		ID:   "cursor-user",
 		Kind: domain.TargetCursorUser,
 		Root: filepath.Join(home, ".cursor", "skills"),
@@ -274,7 +274,7 @@ func TestObserveFakeAndOSAgree(t *testing.T) {
 		fsys, home := be.open(t)
 		repoRoot := filepath.Join(home, ".skills")
 		root := buildSlotTree(t, fsys, home, repoRoot)
-		obs, err := target.NewCursor(repoRoot).Observe(fsys, domain.Target{
+		obs, err := targets.NewCursor(repoRoot).Observe(fsys, domain.Target{
 			ID:   "cursor-user",
 			Kind: domain.TargetCursorUser,
 			Root: root,
@@ -304,7 +304,7 @@ func TestObserveFakeAndOSAgree(t *testing.T) {
 	}
 }
 
-func problemHas(problems []target.Problem, level target.Level, phrase string) bool {
+func problemHas(problems []targets.Problem, level targets.Level, phrase string) bool {
 	for _, problem := range problems {
 		if problem.Level == level && strings.Contains(problem.Message, phrase) {
 			return true
@@ -313,7 +313,7 @@ func problemHas(problems []target.Problem, level target.Level, phrase string) bo
 	return false
 }
 
-func problemTextHas(problems []target.Problem, phrase string) bool {
+func problemTextHas(problems []targets.Problem, phrase string) bool {
 	for _, problem := range problems {
 		if strings.Contains(problem.Message, phrase) || strings.Contains(problem.Path, phrase) {
 			return true

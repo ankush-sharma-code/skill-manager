@@ -1,4 +1,4 @@
-package target
+package targets
 
 import (
 	"github.com/ankush-sharma-code/skill-manager/internal/domain"

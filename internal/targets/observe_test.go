@@ -1,4 +1,4 @@
-package target_test
+package targets_test
 
 import (
 	"errors"
@@ -11,7 +11,7 @@ import (
 	"github.com/ankush-sharma-code/skill-manager/internal/domain"
 	"github.com/ankush-sharma-code/skill-manager/internal/ports"
 	"github.com/ankush-sharma-code/skill-manager/internal/skillfile"
-	"github.com/ankush-sharma-code/skill-manager/internal/target"
+	"github.com/ankush-sharma-code/skill-manager/internal/targets"
 )
 
 func TestObserveClassifiesEverySlotState(t *testing.T) {
@@ -23,7 +23,7 @@ func TestObserveClassifiesEverySlotState(t *testing.T) {
 			fsys, home := be.open(t)
 			repoRoot := filepath.Join(home, ".skills")
 			root := buildSlotTree(t, fsys, home, repoRoot)
-			ad := target.NewCursor(repoRoot)
+			ad := targets.NewCursor(repoRoot)
 			tgt := domain.Target{ID: "cursor-user", Kind: domain.TargetCursorUser, Root: root, Mode: domain.SyncCopy, Enabled: true}
 
 			var got []domain.Observed
@@ -113,7 +113,7 @@ func TestObserveSymlinkLoopDoesNotHang(t *testing.T) {
 			mustMkdir(t, fsys, root)
 			mustSymlink(t, fsys, filepath.Join(root, "loopb"), filepath.Join(root, "loopa"))
 			mustSymlink(t, fsys, filepath.Join(root, "loopa"), filepath.Join(root, "loopb"))
-			ad := target.NewCursor(filepath.Join(home, ".skills"))
+			ad := targets.NewCursor(filepath.Join(home, ".skills"))
 			tgt := domain.Target{ID: "cursor-user", Root: root}
 			var got []domain.Observed
 			callWithin(t, 2*time.Second, func() error {
@@ -138,13 +138,13 @@ func TestObserveRootSymlinkLoop(t *testing.T) {
 			mustMkdir(t, fsys, home)
 			root := filepath.Join(home, "looproot")
 			mustSymlink(t, fsys, root, root)
-			ad := target.NewClaude(filepath.Join(home, ".skills"))
+			ad := targets.NewClaude(filepath.Join(home, ".skills"))
 			var err error
 			callWithin(t, 2*time.Second, func() error {
 				_, err = ad.Observe(fsys, domain.Target{ID: "claude-user", Root: root})
 				return nil
 			})
-			if !errors.Is(err, target.ErrLoop) {
+			if !errors.Is(err, targets.ErrLoop) {
 				t.Fatalf("root loop err = %v", err)
 			}
 		})
@@ -172,7 +172,7 @@ func TestObserveOutsideRootIsNotFollowed(t *testing.T) {
 			mustSymlink(t, fsys, outside, filepath.Join(root, "foreign"))
 
 			guard := boundaryFS{FS: fsys, root: root}
-			ad := target.NewCursor(filepath.Join(home, ".skills"))
+			ad := targets.NewCursor(filepath.Join(home, ".skills"))
 			got, err := ad.Observe(guard, domain.Target{ID: "cursor-user", Root: root})
 			if err != nil {
 				t.Fatal(err)
@@ -228,7 +228,7 @@ func TestObserveLongSymlinkChainIsBroken(t *testing.T) {
 	}
 	mustMkdir(t, fsys, filepath.Join(home, "real"))
 	mustSymlink(t, fsys, filepath.Join(home, "real"), filepath.Join(root, chainName(links-1)))
-	ad := target.NewCodex(filepath.Join(home, ".skills"))
+	ad := targets.NewCodex(filepath.Join(home, ".skills"))
 	got, err := ad.Classify(fsys, domain.Target{ID: "codex-user", Root: root}, chainName(0))
 	if err != nil {
 		t.Fatal(err)
@@ -243,11 +243,11 @@ func TestClassifyRejectsOutsideName(t *testing.T) {
 	fsys, home := backends()[0].open(t)
 	root := filepath.Join(home, ".claude", "skills")
 	mustMkdir(t, fsys, root)
-	ad := target.NewClaude(filepath.Join(home, ".skills"))
+	ad := targets.NewClaude(filepath.Join(home, ".skills"))
 	tgt := domain.Target{ID: "claude-user", Root: root}
 	for _, name := range []string{"../secret", `..\secret`, "a/b", "..", "."} {
 		_, err := ad.Classify(fsys, tgt, name)
-		if !errors.Is(err, target.ErrOutside) {
+		if !errors.Is(err, targets.ErrOutside) {
 			t.Fatalf("Classify %q err = %v", name, err)
 		}
 	}
@@ -267,7 +267,7 @@ func TestClassifyRejectsOutsideName(t *testing.T) {
 func TestObserveMissingRootAndFileRoot(t *testing.T) {
 	t.Parallel()
 	fsys, home := backends()[0].open(t)
-	ad := target.NewCustom(filepath.Join(home, ".skills"))
+	ad := targets.NewCustom(filepath.Join(home, ".skills"))
 	got, err := ad.Observe(fsys, domain.Target{ID: "custom", Root: filepath.Join(home, "absent")})
 	if err != nil || len(got) != 0 {
 		t.Fatalf("missing root = %v %+v", err, got)
@@ -276,7 +276,7 @@ func TestObserveMissingRootAndFileRoot(t *testing.T) {
 	mustMkdir(t, fsys, home)
 	mustWrite(t, fsys, file, []byte("x"), 0o644)
 	_, err = ad.Observe(fsys, domain.Target{ID: "custom", Root: file})
-	if !errors.Is(err, target.ErrNotDir) {
+	if !errors.Is(err, targets.ErrNotDir) {
 		t.Fatalf("file root err = %v", err)
 	}
 }
@@ -290,7 +290,7 @@ func TestObserveSymlinkedRoot(t *testing.T) {
 	link := filepath.Join(home, ".cursor", "skills")
 	mustMkdir(t, fsys, filepath.Dir(link))
 	mustSymlink(t, fsys, real, link)
-	ad := target.NewCursor(filepath.Join(home, ".skills"))
+	ad := targets.NewCursor(filepath.Join(home, ".skills"))
 	got, err := ad.Observe(fsys, domain.Target{ID: "cursor-user", Root: link})
 	if err != nil {
 		t.Fatal(err)
