@@ -53,8 +53,9 @@ func New() *FS {
 	return &FS{root: newDir("", 0o755)}
 }
 
-// NewCaseFolding returns an empty filesystem that treats names equal under case folding as one entry.
-// ReadDir keeps the spelling of the first create.
+// NewCaseFolding returns an empty filesystem that treats names equal under
+// ASCII A-Z folding as one entry. It does not apply Unicode case folding or
+// NFC/NFD. ReadDir keeps the spelling of the first create.
 func NewCaseFolding() *FS {
 	fsys := New()
 	fsys.fold = true
@@ -478,9 +479,19 @@ func (f *FS) remove(parent, n *node) {
 
 func (f *FS) key(name string) string {
 	if f.fold {
-		return strings.ToLower(name)
+		return asciiFold(name)
 	}
 	return name
+}
+
+func asciiFold(name string) string {
+	b := []byte(name)
+	for i, c := range b {
+		if c >= 'A' && c <= 'Z' {
+			b[i] = c + ('a' - 'A')
+		}
+	}
+	return string(b)
 }
 
 func contains(dir, n *node) bool {

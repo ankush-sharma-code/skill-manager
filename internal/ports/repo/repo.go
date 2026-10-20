@@ -308,6 +308,25 @@ func (r *Repo) ensureRealDir(path string) error {
 	return nil
 }
 
+func asciiEqual(a, b string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := 0; i < len(a); i++ {
+		ca, cb := a[i], b[i]
+		if ca >= 'A' && ca <= 'Z' {
+			ca += 'a' - 'A'
+		}
+		if cb >= 'A' && cb <= 'Z' {
+			cb += 'a' - 'A'
+		}
+		if ca != cb {
+			return false
+		}
+	}
+	return true
+}
+
 func (r *Repo) classify(name string) (exact, folded bool, err error) {
 	if err := r.rejectSymlink(r.root); err != nil {
 		return false, false, err
@@ -328,7 +347,7 @@ func (r *Repo) classify(name string) (exact, folded bool, err error) {
 			exact = true
 			continue
 		}
-		if strings.EqualFold(got, name) {
+		if asciiEqual(got, name) {
 			folded = true
 		}
 	}
