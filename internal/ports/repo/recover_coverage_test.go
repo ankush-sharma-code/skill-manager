@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -146,11 +147,25 @@ func TestRecoverQuarantinesPlainJunkAndRetriesName(t *testing.T) {
 	if err := store.Recover(ctx); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := fsys.Lstat(root + "/.stage/rejected/" + base + "-2"); err != nil {
-		t.Fatalf("collision suffix missing: %v", err)
+	kept, err := fsys.ReadFile(root + "/.stage/rejected/" + base)
+	if err != nil || string(kept) != "taken" {
+		t.Fatalf("existing rejected entry = %q %v", kept, err)
 	}
-	if _, err := fsys.Lstat(root + "/.stage/rejected/notes"); err != nil {
-		t.Fatalf("plain junk missing: %v", err)
+	ents, err := fsys.ReadDir(root + "/.stage/rejected")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var moved, notes bool
+	for _, ent := range ents {
+		if strings.HasPrefix(ent.Name(), base+"-") {
+			moved = true
+		}
+		if ent.Name() == "notes" || strings.HasPrefix(ent.Name(), "notes-") {
+			notes = true
+		}
+	}
+	if !moved || !notes {
+		t.Fatalf("rejected = %v", ents)
 	}
 	if _, err := fsys.Lstat(root + "/demo"); err == nil {
 		t.Fatal("junk promoted")

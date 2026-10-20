@@ -640,11 +640,10 @@ func (r *Repo) recoverOne(name string, pair *stagePair) error {
 	if !r.withinRoot(live) {
 		return fmt.Errorf("stage entry escapes the root: %s", name)
 	}
-	info, err := r.fs.Lstat(live)
-	if err != nil && !errors.Is(err, fs.ErrNotExist) {
+	liveOK, err := r.liveDir(live)
+	if err != nil {
 		return err
 	}
-	liveOK := err == nil && realDir(info)
 	newOK, err := r.promotable(pair.newPath)
 	if err != nil {
 		return err
@@ -653,42 +652,59 @@ func (r *Repo) recoverOne(name string, pair *stagePair) error {
 	if err != nil {
 		return err
 	}
-	switch {
-	case newOK && pair.oldPath != "" && !liveOK:
-		if err := r.fs.Rename(pair.newPath, live); err != nil {
-			return err
-		}
-		return r.dropStage(pair.oldPath, name, true)
-	case oldOK && !liveOK:
-		if pair.newPath != "" {
-			if err := r.dropStage(pair.newPath, name, false); err != nil {
-				return err
-			}
-		}
-		return r.fs.Rename(pair.oldPath, live)
-	case pair.newPath != "" && liveOK:
+	return r.finishJournal(live, name, pair, liveOK, newOK, oldOK)
+}
+
+func (r *Repo) liveDir(path string) (bool, error) {
+	info, err := r.fs.Lstat(path)
+	if errors.Is(err, fs.ErrNotExist) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	return realDir(info), nil
+}
+
+func (r *Repo) finishJournal(live, name string, pair *stagePair, liveOK, newOK, oldOK bool) error {
+	if newOK && pair.oldPath != "" && !liveOK {
+		return r.rollForward(live, name, pair)
+	}
+	if oldOK && !liveOK {
+		return r.rollBack(live, name, pair)
+	}
+	if liveOK {
+		return r.dropPair(pair, name, true)
+	}
+	return r.dropPair(pair, name, false)
+}
+
+func (r *Repo) rollForward(live, name string, pair *stagePair) error {
+	if err := r.fs.Rename(pair.newPath, live); err != nil {
+		return err
+	}
+	return r.dropStage(pair.oldPath, name, true)
+}
+
+func (r *Repo) rollBack(live, name string, pair *stagePair) error {
+	if pair.newPath != "" {
 		if err := r.dropStage(pair.newPath, name, false); err != nil {
 			return err
 		}
-		if pair.oldPath != "" {
-			return r.dropStage(pair.oldPath, name, true)
-		}
-		return nil
-	case pair.oldPath != "" && liveOK:
-		return r.dropStage(pair.oldPath, name, true)
-	case pair.newPath != "":
+	}
+	return r.fs.Rename(pair.oldPath, live)
+}
+
+func (r *Repo) dropPair(pair *stagePair, name string, removeOld bool) error {
+	if pair.newPath != "" {
 		if err := r.dropStage(pair.newPath, name, false); err != nil {
 			return err
 		}
-		if pair.oldPath != "" {
-			return r.dropStage(pair.oldPath, name, false)
-		}
-		return nil
-	case pair.oldPath != "":
-		return r.dropStage(pair.oldPath, name, false)
-	default:
+	}
+	if pair.oldPath == "" {
 		return nil
 	}
+	return r.dropStage(pair.oldPath, name, removeOld)
 }
 
 func realDir(info fs.FileInfo) bool {
@@ -759,18 +775,8 @@ func (r *Repo) quarantine(path, name string) error {
 		return err
 	}
 	base := filepath.Base(path)
-	dest := filepath.Join(rejected, base)
-	for n := 2; n < 10; n++ {
-		_, err := r.fs.Lstat(dest)
-		if errors.Is(err, fs.ErrNotExist) {
-			break
-		}
-		if err != nil {
-			return err
-		}
-		dest = filepath.Join(rejected, fmt.Sprintf("%s-%d", base, n))
-	}
-	if err := r.fs.Rename(path, dest); err != nil {
+	dest, err := r.moveRejected(path, rejected, base)
+	if err != nil {
 		return err
 	}
 	why := errors.New("not a real skill directory")
@@ -787,6 +793,52 @@ func (r *Repo) quarantine(path, name string) error {
 		log.Printf("quarantined %s: %v", dest, why)
 	}
 	return nil
+}
+
+// moveRejected renames path into dir under a clock and rand suffix.
+// An existing destination is left in place and the move is tried again.
+func (r *Repo) moveRejected(path, dir, base string) (string, error) {
+	var last error
+	for attempt := 0; attempt < 16; attempt++ {
+		dest, err := r.rejectedPath(dir, base)
+		if err != nil {
+			return "", err
+		}
+		err = r.fs.Rename(path, dest)
+		if err == nil {
+			return dest, nil
+		}
+		if !errors.Is(err, fs.ErrExist) {
+			return "", err
+		}
+		last = err
+	}
+	if last == nil {
+		last = fs.ErrExist
+	}
+	return "", last
+}
+
+// rejectedPath builds <base>-<unix nano>-<rand> and refuses a name that already exists.
+func (r *Repo) rejectedPath(dir, base string) (string, error) {
+	stamp := strconv.FormatInt(r.clock.Now().UTC().UnixNano(), 10)
+	var last string
+	for attempt := 0; attempt < 16; attempt++ {
+		suffix, err := r.randomHex(8)
+		if err != nil {
+			return "", err
+		}
+		dest := filepath.Join(dir, base+"-"+stamp+"-"+suffix)
+		last = dest
+		_, err = r.fs.Lstat(dest)
+		if errors.Is(err, fs.ErrNotExist) {
+			return dest, nil
+		}
+		if err != nil {
+			return "", err
+		}
+	}
+	return "", fmt.Errorf("rejected name still exists: %s", last)
 }
 
 func (r *Repo) removeQuiet(path string) {
