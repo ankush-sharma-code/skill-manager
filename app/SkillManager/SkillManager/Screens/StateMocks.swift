@@ -6,7 +6,7 @@ struct EmptySkillsMock: View {
     var body: some View {
         AppShell(model: model) {
             VStack(alignment: .leading, spacing: Spacing.xs) {
-                Text("Skills")
+                Text("All")
                     .font(Typography.title2)
                 Text("None yet")
                     .font(Typography.callout)
@@ -34,7 +34,7 @@ struct LoadingSkillsMock: View {
     var body: some View {
         AppShell(model: model) {
             VStack(alignment: .leading, spacing: Spacing.sm) {
-                Text("Skills")
+                Text("All")
                     .font(Typography.title2)
                 SkeletonRows()
                 Spacer()
@@ -67,7 +67,7 @@ struct ErrorSkillsMock: View {
     var body: some View {
         AppShell(model: model) {
             VStack(alignment: .leading, spacing: Spacing.xs) {
-                Text("Skills")
+                Text("All")
                     .font(Typography.title2)
                 Text("Unavailable")
                     .font(Typography.callout)
@@ -79,8 +79,8 @@ struct ErrorSkillsMock: View {
             .background(Palette.content)
         } detail: {
             ErrorStateView(
-                title: "Couldn't reach skillsd",
-                message: "Skill Manager will keep trying in the background. Retry if you want to check again now."
+                title: "Skill Manager's background service isn't running",
+                message: "Start the service, or retry the check."
             )
             .background(Palette.page)
         }

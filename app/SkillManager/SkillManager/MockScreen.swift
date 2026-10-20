@@ -12,6 +12,7 @@ enum MockScreen: String, CaseIterable, Identifiable {
     case loadingState
     case errorState
     case commandPalette
+    case conflictResolve
 
     var id: String { rawValue }
 
@@ -28,6 +29,7 @@ enum MockScreen: String, CaseIterable, Identifiable {
         case .loadingState: "loading-state"
         case .errorState: "error-state"
         case .commandPalette: "command-palette"
+        case .conflictResolve: "conflict-resolve"
         }
     }
 
@@ -70,6 +72,12 @@ enum MockScreen: String, CaseIterable, Identifiable {
             ErrorSkillsMock()
         case .commandPalette:
             CommandPaletteMock()
+        case .conflictResolve:
+            MainWindowMock(
+                model: DemoModel(selection: "tdd", section: .conflicts),
+                playsIntro: playsIntro,
+                animatesSelection: false
+            )
         }
     }
 }

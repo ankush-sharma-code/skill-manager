@@ -45,7 +45,7 @@ final class MockRenderTests: XCTestCase {
     func testScreenNamesAreUnique() {
         let names = MockScreen.allCases.map(\.fileName)
         XCTAssertEqual(names.count, Set(names).count)
-        XCTAssertEqual(names.count, 11)
+        XCTAssertEqual(names.count, 12)
     }
 
     func testRendersLightAndDark() throws {

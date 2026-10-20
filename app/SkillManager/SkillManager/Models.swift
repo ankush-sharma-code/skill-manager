@@ -1,51 +1,51 @@
 import Foundation
 
 enum SidebarSection: String, CaseIterable, Identifiable, Hashable {
-    case skills
+    case all
     case conflicts
-    case targets
+    case idle
+    case tools
     case usage
-    case settings
 
     var id: String { rawValue }
 
     var title: String {
         switch self {
-        case .skills: "Skills"
+        case .all: "All"
         case .conflicts: "Conflicts"
-        case .targets: "Targets"
+        case .idle: "Idle"
+        case .tools: "Tools"
         case .usage: "Usage"
-        case .settings: "Settings"
         }
     }
 
     var symbol: String {
         switch self {
-        case .skills: "square.stack.3d.up"
+        case .all: "square.stack.3d.up"
         case .conflicts: "exclamationmark.triangle"
-        case .targets: "arrow.triangle.branch"
+        case .idle: "moon.zzz"
+        case .tools: "wrench.and.screwdriver"
         case .usage: "chart.bar"
-        case .settings: "gearshape"
         }
     }
 
     var emptyTitle: String {
         switch self {
-        case .skills: "No skills yet"
+        case .all: "No skills yet"
         case .conflicts: "No open conflicts"
-        case .targets: "No tools yet"
+        case .idle: "No idle skills"
+        case .tools: "No tools yet"
         case .usage: "No usage yet"
-        case .settings: "Settings"
         }
     }
 
     var emptyMessage: String {
         switch self {
-        case .skills: "Add a skill once. Skill Manager syncs it to every tool you turned on."
+        case .all: "Add a skill once. Skill Manager syncs it to every tool you turned on."
         case .conflicts: "When a tool's copy drifts from the folder, it shows up here."
-        case .targets: "Run setup to detect Claude Code, Cursor, and Codex."
+        case .idle: "A skill lands here after it goes unused past the idle threshold."
+        case .tools: "Run setup to detect Claude Code, Cursor, and Codex."
         case .usage: "Usage appears after a tool reads a skill."
-        case .settings: "Launch at login, the idle threshold, and setup live here."
         }
     }
 }

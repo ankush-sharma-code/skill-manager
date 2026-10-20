@@ -84,7 +84,7 @@ struct MenuBarPopover: View {
     private var actions: some View {
         VStack(alignment: .leading, spacing: Spacing.xxs) {
             Button {
-                model.section = .skills
+                model.section = .all
             } label: {
                 Label("Add Skill", systemImage: "plus")
                     .frame(maxWidth: .infinity, alignment: .leading)

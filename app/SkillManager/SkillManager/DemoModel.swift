@@ -7,7 +7,8 @@ final class DemoModel {
     var skills: [SkillFixture]
     var selection: String
     var query = ""
-    var section: SidebarSection = .skills
+    var section: SidebarSection = .all
+    var toolSelection = "claude"
     var palettePresented = false
     var paletteQuery = ""
     var syncPhase: SyncPhase = .idle
@@ -20,7 +21,12 @@ final class DemoModel {
         case complete
     }
 
-    init(skills: [SkillFixture] = FixtureLibrary.skills, selection: String? = nil, reportsLoading: Bool = false) {
+    init(
+        skills: [SkillFixture] = FixtureLibrary.skills,
+        selection: String? = nil,
+        reportsLoading: Bool = false,
+        section: SidebarSection = .all
+    ) {
         self.skills = skills
         if let selection {
             self.selection = selection
@@ -29,17 +35,32 @@ final class DemoModel {
         }
         displayedSynced = FixtureLibrary.syncedSlots(in: skills)
         self.reportsLoading = reportsLoading
+        self.section = section
     }
 
     var visibleSkills: [SkillFixture] {
         let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
-        return skills
+        let pool: [SkillFixture]
+        switch section {
+        case .conflicts:
+            pool = skills.filter { $0.flags.contains(.conflict) }
+        case .idle:
+            pool = skills.filter { $0.flags.contains(.idle) }
+        case .all, .tools, .usage:
+            pool = skills
+        }
+        return pool
             .filter { skill in
                 trimmed.isEmpty
                     || skill.name.localizedCaseInsensitiveContains(trimmed)
                     || skill.summary.localizedCaseInsensitiveContains(trimmed)
             }
-            .sorted { $0.name < $1.name }
+            .sorted { lhs, rhs in
+                if section == .usage {
+                    return lhs.usesThisWeek > rhs.usesThisWeek
+                }
+                return lhs.name < rhs.name
+            }
     }
 
     var selectedSkill: SkillFixture? {
@@ -85,7 +106,15 @@ final class DemoModel {
 
     func select(_ id: String) {
         selection = id
-        section = .skills
+        if section == .conflicts || section == .idle || section == .usage {
+            return
+        }
+        section = .all
+    }
+
+    func openConflict(_ id: String) {
+        selection = id
+        section = .conflicts
     }
 
     func selectAdjacent(_ offset: Int) {
@@ -126,16 +155,16 @@ final class DemoModel {
         case "action-sync":
             syncNow()
         case "action-add":
-            section = .skills
+            section = .all
         case "action-setup":
             wizardPresented = true
         case "action-settings":
-            section = .settings
+            break
         default:
             if entry.kind == .skill {
                 select(entry.id)
             } else if entry.kind == .target {
-                section = .targets
+                section = .tools
             }
         }
     }

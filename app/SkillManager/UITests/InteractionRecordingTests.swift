@@ -42,9 +42,17 @@ final class InteractionRecordingTests: XCTestCase {
         let tdd = app.buttons["skill-row-tdd"]
         if tdd.waitForExistence(timeout: 4) {
             tap(tdd, name: "tdd row", notes: &notes)
-            pause(0.7, frames: &frames)
+            pause(0.45, frames: &frames)
         } else {
             notes.append("tdd row missing")
+        }
+
+        let badge = app.buttons["conflict-badge-tdd"]
+        if badge.waitForExistence(timeout: 4) {
+            tap(badge, name: "conflict badge", notes: &notes)
+            pause(0.8, frames: &frames)
+        } else {
+            notes.append("conflict badge missing")
         }
 
         let sync = app.buttons["sync-now"]
@@ -60,8 +68,8 @@ final class InteractionRecordingTests: XCTestCase {
             notes.append("sync button missing")
         }
 
-        if app.buttons["sidebar-skills"].isHittable {
-            app.buttons["sidebar-skills"].click()
+        if app.buttons["sidebar-all"].isHittable {
+            app.buttons["sidebar-all"].click()
         }
         app.typeKey("k", modifierFlags: .command)
         let palette = app.descendants(matching: .any)["command-palette"]

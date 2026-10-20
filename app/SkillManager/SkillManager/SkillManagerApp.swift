@@ -14,20 +14,20 @@ struct SkillManagerApp: App {
         .commands {
             CommandGroup(replacing: .newItem) {
                 Button("Add Skill") {
-                    model.section = .skills
+                    model.section = .all
                 }
                 .keyboardShortcut("n", modifiers: .command)
             }
             CommandMenu("Go") {
-                Button("Skills") { model.section = .skills }
+                Button("All") { model.section = .all }
                     .keyboardShortcut("1", modifiers: .command)
                 Button("Conflicts") { model.section = .conflicts }
                     .keyboardShortcut("2", modifiers: .command)
-                Button("Targets") { model.section = .targets }
+                Button("Idle") { model.section = .idle }
                     .keyboardShortcut("3", modifiers: .command)
-                Button("Usage") { model.section = .usage }
+                Button("Tools") { model.section = .tools }
                     .keyboardShortcut("4", modifiers: .command)
-                Button("Settings") { model.section = .settings }
+                Button("Usage") { model.section = .usage }
                     .keyboardShortcut("5", modifiers: .command)
             }
             CommandGroup(after: .sidebar) {
@@ -39,9 +39,7 @@ struct SkillManagerApp: App {
                     model.togglePalette()
                 }
                 .keyboardShortcut("k", modifiers: .command)
-                Button("Settings") {
-                    model.section = .settings
-                }
+                Button("Settings") {}
                 .keyboardShortcut(",", modifiers: .command)
                 Button("Run Setup Again") {
                     model.wizardPresented = true

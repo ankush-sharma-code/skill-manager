@@ -6,24 +6,14 @@ struct AppShell<Content: View, Detail: View>: View {
     @ViewBuilder var detail: () -> Detail
 
     var body: some View {
-        NavigationSplitView {
+        HStack(spacing: 0) {
             SidebarColumn(model: model)
-                .navigationSplitViewColumnWidth(
-                    min: Measure.sidebarMin,
-                    ideal: Measure.sidebar,
-                    max: Measure.sidebarMax
-                )
-        } content: {
+                .frame(width: Measure.sidebar)
             content()
-                .navigationSplitViewColumnWidth(
-                    min: Measure.listMin,
-                    ideal: Measure.list,
-                    max: Measure.listMax
-                )
-        } detail: {
+                .frame(width: Measure.list)
             detail()
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
-        .navigationSplitViewStyle(.balanced)
     }
 }
 
@@ -33,6 +23,10 @@ struct SidebarColumn: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
+            Text("Skill Manager")
+                .font(Typography.headline)
+                .padding(.horizontal, Spacing.sm)
+                .padding(.top, Spacing.sm)
             VStack(alignment: .leading, spacing: Spacing.xxs) {
                 ForEach(SidebarSection.allCases) { section in
                     sidebarButton(section)
@@ -56,7 +50,7 @@ struct SidebarColumn: View {
         let selected = model.section == section
         return Button {
             withAnimation(Motion.animation(.snappy, reduceMotion: reduceMotion)) {
-                model.section = section
+                show(section)
             }
         } label: {
             HStack(spacing: Spacing.xs) {
@@ -84,6 +78,22 @@ struct SidebarColumn: View {
         }
         .buttonStyle(.plain)
         .accessibilityIdentifier("sidebar-\(section.rawValue)")
+    }
+
+    private func show(_ section: SidebarSection) {
+        model.section = section
+        switch section {
+        case .conflicts:
+            if model.selectedSkill?.flags.contains(.conflict) != true {
+                model.selection = model.skills.first { $0.flags.contains(.conflict) }?.id ?? model.selection
+            }
+        case .idle:
+            if model.selectedSkill?.flags.contains(.idle) != true {
+                model.selection = model.skills.first { $0.flags.contains(.idle) }?.id ?? model.selection
+            }
+        case .all, .tools, .usage:
+            break
+        }
     }
 
     private var statusFooter: some View {
@@ -128,7 +138,7 @@ struct SkillListColumn: View {
         VStack(alignment: .leading, spacing: 0) {
             VStack(alignment: .leading, spacing: Spacing.xs) {
                 HStack {
-                    Text("Skills")
+                    Text(model.section.title)
                         .font(Typography.title2)
                     Spacer()
                     Text("\(model.visibleSkills.count)")
@@ -179,26 +189,94 @@ struct SkillListColumn: View {
     }
 
     private func skillButton(_ skill: SkillFixture) -> some View {
-        let selected = model.selection == skill.id && model.section == .skills
-        return Button {
-            withAnimation(Motion.animation(.snappy, reduceMotion: reduceMotion)) {
-                model.select(skill.id)
+        let selected = model.selection == skill.id && model.section != .tools
+        return HStack(alignment: .top, spacing: Spacing.xxs) {
+            Button {
+                withAnimation(Motion.animation(.snappy, reduceMotion: reduceMotion)) {
+                    if skill.flags.contains(.conflict), model.section == .conflicts {
+                        model.openConflict(skill.id)
+                    } else {
+                        model.select(skill.id)
+                    }
+                }
+            } label: {
+                SkillRowLabel(skill: skill, morphs: morphs, isSelected: selected, namespace: namespace)
+                    .frame(maxWidth: .infinity, alignment: .leading)
             }
-        } label: {
-            SkillRowLabel(skill: skill, morphs: morphs, isSelected: selected, namespace: namespace)
-                .padding(.horizontal, Spacing.xs)
-                .padding(.vertical, Spacing.xs)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .motionRow(isSelected: selected)
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("skill-row-\(skill.id)")
+            if skill.flags.contains(.conflict) {
+                Button {
+                    withAnimation(Motion.animation(.snappy, reduceMotion: reduceMotion)) {
+                        model.openConflict(skill.id)
+                    }
+                } label: {
+                    Text("Conflict")
+                        .font(Typography.caption)
+                        .foregroundStyle(StatusColor.paint(.conflict))
+                        .padding(.horizontal, Spacing.xs)
+                        .padding(.vertical, Spacing.xxs)
+                        .background(StatusColor.paint(.conflict, opacity: 0.14), in: Capsule())
+                }
+                .buttonStyle(.plain)
+                .motionPress()
+                .accessibilityIdentifier("conflict-badge-\(skill.id)")
+            }
         }
-        .buttonStyle(.plain)
-        .accessibilityIdentifier("skill-row-\(skill.id)")
+        .padding(.horizontal, Spacing.xs)
+        .padding(.vertical, Spacing.xs)
+        .motionRow(isSelected: selected)
     }
 
     private func step(_ offset: Int) {
         withAnimation(Motion.animation(.snappy, reduceMotion: reduceMotion)) {
             model.selectAdjacent(offset)
         }
+    }
+}
+
+struct ToolListColumn: View {
+    @Bindable var model: DemoModel
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Text("Tools")
+                .font(Typography.title2)
+                .padding(.horizontal, Spacing.sm)
+                .padding(.top, Spacing.sm)
+                .padding(.bottom, Spacing.xs)
+            ScrollView {
+                LazyVStack(spacing: Spacing.xxs) {
+                    ForEach(FixtureLibrary.detectedTools) { tool in
+                        Button {
+                            withAnimation(Motion.animation(.snappy, reduceMotion: reduceMotion)) {
+                                model.toolSelection = tool.id
+                                model.section = .tools
+                            }
+                        } label: {
+                            VStack(alignment: .leading, spacing: Spacing.xxs) {
+                                Text(tool.name)
+                                    .font(Typography.headline)
+                                Text(tool.path)
+                                    .font(Typography.caption)
+                                    .foregroundStyle(.secondary)
+                                    .lineLimit(1)
+                            }
+                            .padding(.horizontal, Spacing.xs)
+                            .padding(.vertical, Spacing.xs)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .motionRow(isSelected: model.toolSelection == tool.id)
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityIdentifier("tool-row-\(tool.id)")
+                    }
+                }
+                .padding(.horizontal, Spacing.xs)
+            }
+            Spacer(minLength: 0)
+        }
+        .background(Palette.content)
     }
 }
 
@@ -216,7 +294,7 @@ struct SkillRowLabel: View {
                     .lineLimit(1)
                     .skillTitleMorph(id: skill.id, namespace: namespace, enabled: morphs, isSource: !isSelected)
                 Spacer(minLength: Spacing.xs)
-                ForEach(skill.flags, id: \.self) { flag in
+                ForEach(skill.flags.filter { $0 != .conflict }, id: \.self) { flag in
                     Text(flag.title)
                         .font(Typography.caption)
                         .foregroundStyle(StatusColor.paint(flag.kind))
@@ -231,11 +309,7 @@ struct SkillRowLabel: View {
                 .lineLimit(2)
             HStack(spacing: Spacing.xs) {
                 ForEach(skill.targets) { slot in
-                    Circle()
-                        .fill(StatusColor.paint(slot.state.kind))
-                        .frame(width: Spacing.xs, height: Spacing.xs)
-                        .help("\(slot.tool) \(slot.state.label)")
-                        .accessibilityLabel("\(slot.tool) \(slot.state.label)")
+                    ToolMark(tool: slot.tool, state: slot.state)
                 }
                 Spacer(minLength: Spacing.xs)
                 Text("\(skill.usesThisWeek)")
@@ -259,34 +333,99 @@ struct DetailColumn: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            if model.section == .skills, model.selectedSkill != nil {
+            if showsReader, model.selectedSkill != nil {
                 ReaderToolbar()
             }
             Group {
-                if model.section == .skills, let skill = model.selectedSkill {
+                if model.section == .conflicts, let skill = model.selectedSkill, skill.flags.contains(.conflict) {
+                    ConflictResolveView(skill: skill)
+                        .id(skill.id)
+                        .transition(.opacity)
+                } else if model.section == .tools {
+                    ToolDetail(toolID: model.toolSelection)
+                } else if model.section == .usage, let skill = model.selectedSkill {
+                    UsageDetail(skill: skill, playsIntro: playsIntro)
+                        .id(skill.id)
+                } else if showsReader, let skill = model.selectedSkill {
                     SkillReaderView(skill: skill, playsIntro: playsIntro, morphs: morphs, namespace: namespace)
                         .id(skill.id)
                         .transition(.opacity)
-                } else if model.section == .skills {
+                } else if model.skills.isEmpty {
                     EmptyStateView(
-                        title: SidebarSection.skills.emptyTitle,
-                        systemImage: SidebarSection.skills.symbol,
-                        message: SidebarSection.skills.emptyMessage,
+                        title: SidebarSection.all.emptyTitle,
+                        systemImage: SidebarSection.all.symbol,
+                        message: SidebarSection.all.emptyMessage,
                         actionTitle: "Add Skill"
                     )
                 } else {
                     EmptyStateView(
                         title: model.section.emptyTitle,
                         systemImage: model.section.symbol,
-                        message: model.section.emptyMessage,
-                        actionTitle: model.section == .settings ? "Run Setup Again" : nil,
-                        action: { model.wizardPresented = true }
+                        message: model.section.emptyMessage
                     )
                 }
             }
             .animation(Motion.animation(.snappy, reduceMotion: reduceMotion), value: model.selection)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Palette.page)
+    }
+
+    private var showsReader: Bool {
+        model.section == .all || model.section == .idle
+    }
+}
+
+struct ToolDetail: View {
+    var toolID: String
+
+    private var tool: DetectedTool? {
+        FixtureLibrary.detectedTools.first { $0.id == toolID }
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: Spacing.md) {
+            if let tool {
+                Text(tool.name)
+                    .font(Typography.title2)
+                Text(tool.path)
+                    .font(Typography.body)
+                    .foregroundStyle(.secondary)
+                if let warning = tool.warning {
+                    Text(warning)
+                        .font(Typography.callout)
+                        .foregroundStyle(StatusColor.paint(.attention))
+                }
+                SectionCard(title: "Sync") {
+                    Text(tool.detected ? "Detected on this Mac" : "Not detected")
+                        .font(Typography.body)
+                }
+            }
+            Spacer()
+        }
+        .padding(Spacing.lg)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .background(Palette.page)
+    }
+}
+
+struct UsageDetail: View {
+    var skill: SkillFixture
+    var playsIntro: Bool
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: Spacing.md) {
+            Text(skill.name)
+                .font(Typography.title2)
+            Text("\(skill.usesThisWeek) uses this week. Last used \(skill.lastUsed).")
+                .font(Typography.body)
+                .foregroundStyle(.secondary)
+            Sparkline(values: skill.series, playsIntro: playsIntro)
+                .frame(width: Measure.sparklineWidth)
+            Spacer()
+        }
+        .padding(Spacing.lg)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .background(Palette.page)
     }
 }
@@ -302,18 +441,10 @@ struct MainWindowMock: View {
     var body: some View {
         ZStack(alignment: .top) {
             AppShell(model: model) {
-                if model.section == .skills {
-                    SkillListColumn(model: model, morphs: animatesSelection, namespace: namespace)
+                if model.section == .tools {
+                    ToolListColumn(model: model)
                 } else {
-                    VStack(alignment: .leading, spacing: Spacing.xs) {
-                        Text(model.section.title)
-                            .font(Typography.title2)
-                            .padding(.horizontal, Spacing.sm)
-                            .padding(.top, Spacing.sm)
-                        Spacer()
-                    }
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-                    .background(Palette.content)
+                    SkillListColumn(model: model, morphs: animatesSelection, namespace: namespace)
                 }
             } detail: {
                 DetailColumn(

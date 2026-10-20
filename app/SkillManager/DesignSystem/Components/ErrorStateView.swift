@@ -3,6 +3,7 @@ import SwiftUI
 struct ErrorStateView: View {
     var title: String
     var message: String
+    var start: () -> Void = {}
     var retry: () -> Void = {}
 
     var body: some View {
@@ -17,12 +18,18 @@ struct ErrorStateView: View {
                 .font(Typography.body)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
-                .frame(maxWidth: 360)
-            Button("Retry", action: retry)
-                .buttonStyle(.borderedProminent)
-                .motionPress()
-                .padding(.top, Spacing.xs)
-                .accessibilityIdentifier("retry")
+                .frame(maxWidth: 420)
+            HStack(spacing: Spacing.xs) {
+                Button("Start it", action: start)
+                    .buttonStyle(.borderedProminent)
+                    .motionPress()
+                    .accessibilityIdentifier("start-service")
+                Button("Retry", action: retry)
+                    .buttonStyle(.bordered)
+                    .motionPress()
+                    .accessibilityIdentifier("retry")
+            }
+            .padding(.top, Spacing.xs)
         }
         .padding(Spacing.lg)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -31,8 +38,8 @@ struct ErrorStateView: View {
 
 #Preview("Error state") {
     ErrorStateView(
-        title: "Couldn't reach skillsd",
-        message: "Skill Manager will keep trying in the background. Retry if you want to check again now."
+        title: "Skill Manager's background service isn't running",
+        message: "Start the service, or retry the check."
     )
     .frame(width: 480, height: 360)
 }
