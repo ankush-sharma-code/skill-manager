@@ -60,9 +60,13 @@ final class InteractionRecordingTests: XCTestCase {
             notes.append("sync button missing")
         }
 
+        if app.buttons["sidebar-skills"].isHittable {
+            app.buttons["sidebar-skills"].click()
+        }
         app.typeKey("k", modifierFlags: .command)
-        let search = app.textFields["palette-search"]
-        if search.waitForExistence(timeout: 4), search.isHittable {
+        let palette = app.descendants(matching: .any)["command-palette"]
+        let search = app.descendants(matching: .any)["palette-search"]
+        if palette.waitForExistence(timeout: 4), search.waitForExistence(timeout: 2), search.isHittable {
             search.click()
             search.typeText("sync")
             pause(0.7, frames: &frames)

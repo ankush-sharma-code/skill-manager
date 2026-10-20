@@ -76,25 +76,99 @@ final class MockRenderTests: XCTestCase {
             .environment(\.colorScheme, scheme)
             .preferredColorScheme(scheme)
             .frame(width: size.width, height: size.height)
-        let renderer = ImageRenderer(content: view)
-        renderer.scale = 2
-        renderer.isOpaque = true
-        renderer.proposedSize = ProposedViewSize(width: size.width, height: size.height)
         let appearance = NSAppearance(named: scheme == .dark ? .darkAqua : .aqua)
-        var image: NSImage?
-        appearance?.performAsCurrentDrawingAppearance {
-            image = renderer.nsImage
+        let hosted = try renderHosted(view, size: size, appearance: appearance)
+        if isUseful(hosted) {
+            return hosted
         }
+        var rendered: Data?
+        appearance?.performAsCurrentDrawingAppearance {
+            let renderer = ImageRenderer(content: view)
+            renderer.scale = 2
+            renderer.isOpaque = true
+            renderer.proposedSize = ProposedViewSize(width: size.width, height: size.height)
+            if let cgImage = renderer.cgImage {
+                rendered = NSBitmapImageRep(cgImage: cgImage).representation(using: .png, properties: [:])
+            }
+        }
+        if let rendered, isUseful(rendered) {
+            return rendered
+        }
+        throw CocoaError(.fileWriteUnknown)
+    }
+
+    private func renderHosted(_ view: some View, size: CGSize, appearance: NSAppearance?) throws -> Data {
+        let hosting = NSHostingView(rootView: view)
+        hosting.appearance = appearance
+        hosting.frame = NSRect(origin: .zero, size: size)
+        let window = NSWindow(
+            contentRect: NSRect(origin: .zero, size: size),
+            styleMask: [.borderless],
+            backing: .buffered,
+            defer: false
+        )
+        window.appearance = appearance
+        window.contentView = hosting
+        window.setContentSize(size)
+        window.makeKeyAndOrderFront(nil)
+        window.displayIfNeeded()
+        hosting.layoutSubtreeIfNeeded()
+        RunLoop.current.run(until: Date().addingTimeInterval(0.2))
+        let scale = max(window.backingScaleFactor, 2)
+        let pixelsWide = Int(size.width * scale)
+        let pixelsHigh = Int(size.height * scale)
+        guard let context = CGContext(
+            data: nil,
+            width: pixelsWide,
+            height: pixelsHigh,
+            bitsPerComponent: 8,
+            bytesPerRow: 0,
+            space: CGColorSpaceCreateDeviceRGB(),
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        ) else {
+            window.close()
+            throw CocoaError(.fileWriteUnknown)
+        }
+        context.translateBy(x: 0, y: CGFloat(pixelsHigh))
+        context.scaleBy(x: scale, y: -scale)
+        if hosting.layer == nil {
+            hosting.wantsLayer = true
+        }
+        hosting.layer?.render(in: context)
+        window.close()
         guard
-            let image,
-            let tiff = image.tiffRepresentation,
-            let rep = NSBitmapImageRep(data: tiff),
-            let data = rep.representation(using: .png, properties: [:])
+            let cgImage = context.makeImage(),
+            let data = NSBitmapImageRep(cgImage: cgImage).representation(using: .png, properties: [:])
         else {
-            XCTFail("No image for \(screen.fileName)")
-            return Data()
+            throw CocoaError(.fileWriteUnknown)
         }
         return data
+    }
+
+    private func isUseful(_ data: Data) -> Bool {
+        guard let rep = NSBitmapImageRep(data: data), rep.pixelsWide > 0, rep.pixelsHigh > 0 else {
+            return false
+        }
+        var colors = Set<Int>()
+        var yellow = 0
+        var total = 0
+        let step = 16
+        for y in stride(from: 0, to: rep.pixelsHigh, by: step) {
+            for x in stride(from: 0, to: rep.pixelsWide, by: step) {
+                guard let color = rep.colorAt(x: x, y: y) else { continue }
+                total += 1
+                if color.redComponent > 0.9, color.greenComponent > 0.7, color.blueComponent < 0.25 {
+                    yellow += 1
+                }
+                let key = (Int(color.redComponent * 8) << 6)
+                    | (Int(color.greenComponent * 8) << 3)
+                    | Int(color.blueComponent * 8)
+                colors.insert(key)
+            }
+        }
+        guard total > 0 else { return false }
+        if Double(yellow) / Double(total) > 0.45 { return false }
+        return colors.count >= 8
     }
 }
 
