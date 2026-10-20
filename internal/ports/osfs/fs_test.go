@@ -27,14 +27,14 @@ func TestWriteFileAtomicInjectedFailures(t *testing.T) {
 	orig := createAtomicFile
 	t.Cleanup(func() { createAtomicFile = orig })
 	dir := t.TempDir()
-	for _, op := range []string{"write", "chmod", "sync", "close"} {
+	for _, op := range []string{"write", "sync", "close"} {
 		op := op
 		t.Run(op, func(t *testing.T) {
 			tmp := filepath.Join(dir, op+".tmp")
 			if err := os.WriteFile(tmp, nil, 0o644); err != nil {
 				t.Fatal(err)
 			}
-			createAtomicFile = func(string) (atomicFile, error) {
+			createAtomicFile = func(string, fs.FileMode) (atomicFile, error) {
 				return &errFile{name: tmp, op: op}, nil
 			}
 			dest := filepath.Join(dir, op+".dest")
@@ -64,13 +64,6 @@ func (e *errFile) Write([]byte) (int, error) {
 		return 0, errors.New("write failed")
 	}
 	return 1, nil
-}
-
-func (e *errFile) Chmod(fs.FileMode) error {
-	if e.op == "chmod" {
-		return errors.New("chmod failed")
-	}
-	return nil
 }
 
 func (e *errFile) Sync() error {

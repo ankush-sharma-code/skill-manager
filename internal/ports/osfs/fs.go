@@ -1,6 +1,9 @@
 package osfs
 
 import (
+	"crypto/rand"
+	"encoding/hex"
+	"errors"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -35,18 +38,45 @@ func (FS) MkdirAll(path string, mode fs.FileMode) error { return os.MkdirAll(pat
 type atomicFile interface {
 	Name() string
 	Write([]byte) (int, error)
-	Chmod(fs.FileMode) error
 	Sync() error
 	Close() error
 }
 
-var createAtomicFile = func(dir string) (atomicFile, error) {
-	return os.CreateTemp(dir, ".tmp-*")
+// createMode keeps a file private to the umask. Executable requests become 0755.
+// Other requests become 0644. The process umask is applied by OpenFile.
+func createMode(mode fs.FileMode) fs.FileMode {
+	if mode.Perm()&0o111 != 0 {
+		return 0o755
+	}
+	return 0o644
+}
+
+var createAtomicFile = func(dir string, mode fs.FileMode) (atomicFile, error) {
+	buf := make([]byte, 8)
+	var last error
+	for i := 0; i < 8; i++ {
+		if _, err := rand.Read(buf); err != nil {
+			return nil, err
+		}
+		name := filepath.Join(dir, ".tmp-"+hex.EncodeToString(buf))
+		file, err := os.OpenFile(name, os.O_WRONLY|os.O_CREATE|os.O_EXCL, mode)
+		if err == nil {
+			return file, nil
+		}
+		if !errors.Is(err, fs.ErrExist) {
+			return nil, err
+		}
+		last = err
+	}
+	if last == nil {
+		last = fs.ErrExist
+	}
+	return nil, last
 }
 
 func (FS) WriteFileAtomic(path string, data []byte, mode fs.FileMode) error {
 	dir := filepath.Dir(path)
-	file, err := createAtomicFile(dir)
+	file, err := createAtomicFile(dir, createMode(mode))
 	if err != nil {
 		return err
 	}
@@ -62,9 +92,6 @@ func (FS) WriteFileAtomic(path string, data []byte, mode fs.FileMode) error {
 		}
 	}()
 	if _, err := file.Write(data); err != nil {
-		return err
-	}
-	if err := file.Chmod(mode.Perm()); err != nil {
 		return err
 	}
 	if err := file.Sync(); err != nil {

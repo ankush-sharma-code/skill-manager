@@ -142,6 +142,14 @@ func (f *FS) Readlink(path string) (string, error) {
 	return string(loc.node.data), nil
 }
 
+// createMode matches the os filesystem: executable bits become 0755, otherwise 0644.
+func createMode(mode fs.FileMode) fs.FileMode {
+	if mode.Perm()&0o111 != 0 {
+		return 0o755
+	}
+	return 0o644
+}
+
 func (f *FS) WriteFileAtomic(path string, data []byte, mode fs.FileMode) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -155,7 +163,7 @@ func (f *FS) WriteFileAtomic(path string, data []byte, mode fs.FileMode) error {
 	tmp := &node{
 		name: fmt.Sprintf(".tmp-%d", f.seq),
 		kind: kindFile,
-		mode: mode.Perm(),
+		mode: createMode(mode),
 		data: append([]byte(nil), data...),
 	}
 	f.add(parent, tmp)
