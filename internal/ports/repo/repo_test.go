@@ -506,7 +506,7 @@ func TestPutRollbackAndPublishFailures(t *testing.T) {
 		}
 		store, _ := openRepo(t, removingFS{FS: inner, failSuffix: ".old"}, root, time.Unix(10, 0))
 		err := store.Put(ctx, skillWith(name, "Says hello", nil), newFiles)
-		if !errors.Is(err, errBlocked) {
+		if err != nil {
 			t.Fatalf("Put err = %v", err)
 		}
 		assertFiles(t, inner, root+"/demo", newFiles)

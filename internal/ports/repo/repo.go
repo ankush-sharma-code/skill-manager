@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"log"
 	"path"
 	"path/filepath"
 	"sort"
@@ -36,6 +37,7 @@ type Repo struct {
 	rng      io.Reader
 	root     string
 	problems []ports.SkillProblem
+	logf     func(string, ...any)
 }
 
 // New binds a repository to an absolute root.
@@ -188,10 +190,19 @@ func (r *Repo) Put(ctx context.Context, skill domain.Skill, files map[string][]b
 	}
 	if exact {
 		if err := r.fs.RemoveAll(oldDir); err != nil {
-			return err
+			r.logfBackup(oldDir, err)
 		}
 	}
 	return nil
+}
+
+func (r *Repo) logfBackup(path string, err error) {
+	format := "backup removal failed for %s: %v"
+	if r.logf != nil {
+		r.logf(format, path, err)
+		return
+	}
+	log.Printf(format, path, err)
 }
 
 // Delete moves <root>/<name> to <root>/.trash/<name>-<unix nano>-<rand>.
@@ -594,4 +605,5 @@ func (r *Repo) Problems() []ports.SkillProblem {
 func (r *Repo) SetRand(rng io.Reader) { r.rng = rng }
 
 // SetLog receives a best-effort backup removal failure.
-func (r *Repo) SetLog(func(string, ...any)) {}
+// The default writes to the standard logger.
+func (r *Repo) SetLog(fn func(string, ...any)) { r.logf = fn }
