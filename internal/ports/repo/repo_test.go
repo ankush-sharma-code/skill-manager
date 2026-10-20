@@ -364,8 +364,13 @@ func TestPutStoresUnreadableSkill(t *testing.T) {
 	if _, err := store.Get(ctx, name); !errors.Is(err, domain.ErrMissingFrontmatter) {
 		t.Fatalf("Get err = %v", err)
 	}
-	if _, err := store.List(ctx); !errors.Is(err, domain.ErrMissingFrontmatter) {
-		t.Fatalf("List err = %v", err)
+	listed, err := store.List(ctx)
+	if err != nil || len(listed) != 0 {
+		t.Fatalf("List = %v %v", listed, err)
+	}
+	probs := store.Problems()
+	if len(probs) != 1 || probs[0].Name != name || !errors.Is(probs[0].Err, domain.ErrMissingFrontmatter) {
+		t.Fatalf("problems = %+v", probs)
 	}
 
 	mismatch := mustName(t, "other")

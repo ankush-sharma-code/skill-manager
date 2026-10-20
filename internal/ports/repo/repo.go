@@ -31,10 +31,11 @@ var ErrSymlink = errors.New("symlink under skill root")
 
 // Repo is the skill directory at root, usually ~/.skills.
 type Repo struct {
-	fs    ports.FS
-	clock ports.Clock
-	rng   io.Reader
-	root  string
+	fs       ports.FS
+	clock    ports.Clock
+	rng      io.Reader
+	root     string
+	problems []ports.SkillProblem
 }
 
 // New binds a repository to an absolute root.
@@ -53,6 +54,9 @@ var _ ports.Repo = (*Repo)(nil)
 // List returns the skills whose directory names are valid skill names.
 func (r *Repo) List(ctx context.Context) ([]domain.Skill, error) {
 	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	if err := r.rejectSymlink(r.root); err != nil {
 		return nil, err
 	}
 	ents, err := r.fs.ReadDir(r.root)
@@ -75,13 +79,19 @@ func (r *Repo) List(ctx context.Context) ([]domain.Skill, error) {
 	}
 	sort.Strings(names)
 	out := make([]domain.Skill, 0, len(names))
+	problems := make([]ports.SkillProblem, 0)
 	for _, name := range names {
 		skill, err := r.Get(ctx, domain.SkillName(name))
 		if err != nil {
-			return nil, err
+			if ctx.Err() != nil {
+				return nil, ctx.Err()
+			}
+			problems = append(problems, ports.SkillProblem{Name: domain.SkillName(name), Err: err})
+			continue
 		}
 		out = append(out, skill)
 	}
+	r.problems = problems
 	return out, nil
 }
 
@@ -552,7 +562,15 @@ func (r *Repo) removeQuiet(path string) {
 }
 
 // Problems returns skill directories the last List could not load.
-func (r *Repo) Problems() []ports.SkillProblem { return nil }
+// Dot names and names that are not skill names are skipped, not reported.
+func (r *Repo) Problems() []ports.SkillProblem {
+	if len(r.problems) == 0 {
+		return nil
+	}
+	out := make([]ports.SkillProblem, len(r.problems))
+	copy(out, r.problems)
+	return out
+}
 
 // SetRand supplies bytes for trash names and stage ids.
 func (r *Repo) SetRand(rng io.Reader) { r.rng = rng }
