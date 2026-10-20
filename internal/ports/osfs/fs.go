@@ -31,9 +31,22 @@ func (FS) RemoveAll(path string) error { return os.RemoveAll(path) }
 
 func (FS) MkdirAll(path string, mode fs.FileMode) error { return os.MkdirAll(path, mode) }
 
+// atomicFile is the temp file WriteFileAtomic fills and renames into place.
+type atomicFile interface {
+	Name() string
+	Write([]byte) (int, error)
+	Chmod(fs.FileMode) error
+	Sync() error
+	Close() error
+}
+
+var createAtomicFile = func(dir string) (atomicFile, error) {
+	return os.CreateTemp(dir, ".tmp-*")
+}
+
 func (FS) WriteFileAtomic(path string, data []byte, mode fs.FileMode) error {
 	dir := filepath.Dir(path)
-	file, err := os.CreateTemp(dir, ".tmp-*")
+	file, err := createAtomicFile(dir)
 	if err != nil {
 		return err
 	}

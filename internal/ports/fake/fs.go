@@ -266,7 +266,7 @@ func (f *FS) MkdirAll(path string, mode fs.FileMode) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	if path == "" {
-		return pathErr("mkdir", path, syscall.EINVAL)
+		return pathErr("mkdir", path, syscall.ENOENT)
 	}
 	loc, err := f.walk(path, true)
 	if err == nil {
@@ -301,6 +301,9 @@ func (f *FS) MkdirAll(path string, mode fs.FileMode) error {
 		}
 		if child.kind == kindLink {
 			next, followErr := f.follow(child, 0)
+			if errors.Is(followErr, fs.ErrNotExist) {
+				return pathErr("mkdir", path, syscall.EEXIST)
+			}
 			if followErr != nil {
 				return pathErr("mkdir", path, followErr)
 			}
