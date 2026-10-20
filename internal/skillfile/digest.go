@@ -14,8 +14,8 @@ import (
 
 // TreeDigest is the SHA-256 of a canonical listing.
 // Records are sorted by cleaned relative path. Each record is
-// relpath, a NUL, the four-digit permission, a NUL, the lowercase content SHA-256, and a newline.
-// Directory entries and modification times are omitted.
+// relpath, a NUL, the 8-digit hex file type, a NUL, the four-digit permission, a NUL, the lowercase content SHA-256, and a newline.
+// Directory entries and modification times are omitted. The file type is mode.Type(), so a symlink and a regular file differ.
 func TreeDigest(files []File) (domain.Digest, error) {
 	entries, err := normalize(files)
 	if err != nil {
@@ -116,12 +116,25 @@ func hashTree(entries []entry) domain.Digest {
 		sum := sha256.Sum256(e.content)
 		buf.WriteString(e.rel)
 		buf.WriteByte(0)
+		buf.WriteString(typeTag(e.mode))
+		buf.WriteByte(0)
 		buf.WriteString(permOctal(e.mode))
 		buf.WriteByte(0)
 		buf.WriteString(hex.EncodeToString(sum[:]))
 		buf.WriteByte('\n')
 	}
 	return sha256.Sum256(buf.Bytes())
+}
+
+func typeTag(mode fs.FileMode) string {
+	const digits = "0123456789abcdef"
+	v := uint32(mode.Type())
+	var out [8]byte
+	for i := 7; i >= 0; i-- {
+		out[i] = digits[v&0xf]
+		v >>= 4
+	}
+	return string(out[:])
 }
 
 func permOctal(mode fs.FileMode) string {
@@ -143,7 +156,7 @@ func fileEntries(entries []entry) []domain.FileEntry {
 		}
 		out = append(out, domain.FileEntry{
 			RelPath: e.rel,
-			Mode:    e.mode.Perm(),
+			Mode:    e.mode.Type() | e.mode.Perm(),
 			Size:    int64(len(e.content)),
 			Digest:  sha256.Sum256(e.content),
 		})

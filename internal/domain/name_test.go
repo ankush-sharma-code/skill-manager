@@ -72,9 +72,12 @@ func TestValidateDescription(t *testing.T) {
 		wantErr error
 	}{
 		{name: "short", in: "Says hello"},
+		{name: "padded", in: "  hi  "},
 		{name: "one rune", in: "é"},
 		{name: "max runes", in: strings.Repeat("é", 1024)},
 		{name: "empty", in: "", wantErr: domain.ErrDescriptionLength},
+		{name: "spaces", in: "   ", wantErr: domain.ErrDescriptionLength},
+		{name: "mixed whitespace", in: " \t\n", wantErr: domain.ErrDescriptionLength},
 		{name: "too long", in: strings.Repeat("é", 1025), wantErr: domain.ErrDescriptionLength},
 	}
 

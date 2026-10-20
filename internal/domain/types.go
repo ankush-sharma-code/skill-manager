@@ -3,6 +3,8 @@ package domain
 import (
 	"io/fs"
 	"time"
+
+	"gopkg.in/yaml.v3"
 )
 
 // SkillName is a repository skill name. ParseSkillName is the only constructor.
@@ -30,11 +32,12 @@ const (
 	ProvenanceImported = "imported"
 )
 
-// Skill is one validated skill. Meta holds frontmatter keys other than name and description.
+// Skill is one validated skill.
+// Meta is the frontmatter mapping except name and description, kept as a YAML node so key order, comments, and quoting survive a round trip.
 type Skill struct {
 	Name        SkillName
 	Description string
-	Meta        map[string]any
+	Meta        *yaml.Node
 	Files       []FileEntry
 	Digest      Digest
 	Source      Provenance

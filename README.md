@@ -2,7 +2,7 @@
 
 Skill Manager keeps one copy of each agent skill at `~/.skills/<name>/SKILL.md`.
 
-This repository has the skill name rules and the `SKILL.md` reader. Names match `^[a-z0-9][a-z0-9-]{0,63}$`. The reader keeps unknown frontmatter keys. The tree hash uses the sorted path, the permission, and the content.
+This repository has the skill name rules and the `SKILL.md` reader. Names match `^[a-z0-9][a-z0-9-]{0,63}$`. The reader keeps unknown frontmatter keys, including their order, comments, and quoting. The tree hash uses the sorted path, the file type, the permission, and the content.
 
 ## Run the tests
 
@@ -14,4 +14,4 @@ go vet ./...
 golangci-lint run
 ```
 
-CI uses golangci-lint 1.61.0.
+CI uses golangci-lint 2.15.0.

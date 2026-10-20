@@ -5,12 +5,13 @@ import (
 	"crypto/sha256"
 	"errors"
 	"io/fs"
-	"reflect"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/ankush-sharma-code/skill-manager/internal/domain"
 	"github.com/ankush-sharma-code/skill-manager/internal/skillfile"
+	"gopkg.in/yaml.v3"
 )
 
 func TestParseFrontmatter(t *testing.T) {
@@ -110,22 +111,13 @@ do the thing
 	if string(name) != "demo" || desc != "Says hello" {
 		t.Fatalf("identity = %q %q", name, desc)
 	}
-	if _, ok := meta["name"]; ok {
-		t.Fatal("meta contains name")
+	wantKeys := []string{"author", "note", "tags", "config", "ratio", "extra"}
+	if got := mappingKeys(meta); strings.Join(got, ",") != strings.Join(wantKeys, ",") {
+		t.Fatalf("meta keys = %v", got)
 	}
-	if _, ok := meta["description"]; ok {
-		t.Fatal("meta contains description")
-	}
-	want := map[string]any{
-		"author": "ada",
-		"note":   "true",
-		"tags":   []any{"a", "b"},
-		"config": map[string]any{"retries": 2, "enabled": true},
-		"ratio":  1.5,
-		"extra":  nil,
-	}
-	if !reflect.DeepEqual(meta, want) {
-		t.Fatalf("meta = %#v", meta)
+	note := mappingValue(t, meta, "note")
+	if note.Value != "true" || note.Style != yaml.DoubleQuotedStyle {
+		t.Fatalf("note = %#v", note)
 	}
 
 	out, err := skillfile.Serialize(name, desc, meta, body)
@@ -143,8 +135,15 @@ do the thing
 	if err != nil {
 		t.Fatalf("reparse: %v", err)
 	}
-	if name2 != name || desc2 != desc || string(body2) != string(body) || !reflect.DeepEqual(meta2, meta) {
-		t.Fatalf("round trip = (%q, %q, %#v, %q)", name2, desc2, meta2, body2)
+	if name2 != name || desc2 != desc || string(body2) != string(body) {
+		t.Fatalf("round trip = (%q, %q, %q)", name2, desc2, body2)
+	}
+	againKeys := mappingKeys(meta2)
+	if strings.Join(againKeys, ",") != strings.Join(wantKeys, ",") {
+		t.Fatalf("reparsed keys = %v", againKeys)
+	}
+	if !bytes.Contains(out, []byte("note: \"true\"")) {
+		t.Fatalf("quoting lost:\n%s", out)
 	}
 }
 
@@ -219,7 +218,7 @@ func TestTreeDigestStable(t *testing.T) {
 		t.Fatalf("mtime changed digest: %x vs %x", third, first)
 	}
 
-	const want = "cf792702494b5a16bb7f5adf66d0b6451f07e49750719b01182eda72de5dcbd3"
+	const want = "b87b09471dacbbf999b4ed54217b7dc0add9ee290543e6d52f77cb90dd6ad6f1"
 	if got := hexDigest(first); got != want {
 		t.Fatalf("digest = %s, want %s", got, want)
 	}
@@ -358,6 +357,28 @@ func tooLongDescription() []byte {
 	}
 	b.WriteString("\n---\n")
 	return b.Bytes()
+}
+
+func mappingKeys(n *yaml.Node) []string {
+	if n == nil {
+		return nil
+	}
+	keys := make([]string, 0, len(n.Content)/2)
+	for i := 0; i < len(n.Content); i += 2 {
+		keys = append(keys, n.Content[i].Value)
+	}
+	return keys
+}
+
+func mappingValue(t *testing.T, n *yaml.Node, key string) *yaml.Node {
+	t.Helper()
+	for i := 0; i < len(n.Content); i += 2 {
+		if n.Content[i].Value == key {
+			return n.Content[i+1]
+		}
+	}
+	t.Fatalf("missing key %s", key)
+	return nil
 }
 
 func hexDigest(d domain.Digest) string {

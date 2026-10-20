@@ -3,15 +3,14 @@ package skillfile
 import (
 	"bytes"
 	"fmt"
-	"sort"
-	"strconv"
 
 	"github.com/ankush-sharma-code/skill-manager/internal/domain"
 	"gopkg.in/yaml.v3"
 )
 
 // Parse reads SKILL.md bytes into a name, description, remaining frontmatter, and body.
-func Parse(skillMD []byte) (domain.SkillName, string, map[string]any, []byte, error) {
+// The returned node is the mapping of every key except name and description, in file order.
+func Parse(skillMD []byte) (domain.SkillName, string, *yaml.Node, []byte, error) {
 	raw, body, err := splitFrontmatter(skillMD)
 	if err != nil {
 		return "", "", nil, nil, err
@@ -30,9 +29,9 @@ func Parse(skillMD []byte) (domain.SkillName, string, map[string]any, []byte, er
 	return skillName, description, meta, body, nil
 }
 
-// Serialize writes canonical frontmatter and the body.
-// Keys are name, description, then remaining keys in byte order.
-func Serialize(name domain.SkillName, description string, meta map[string]any, body []byte) ([]byte, error) {
+// Serialize writes name, description, then the unknown-key node, then the body.
+// The unknown-key node is emitted as stored, including order, comments, and scalar style.
+func Serialize(name domain.SkillName, description string, meta *yaml.Node, body []byte) ([]byte, error) {
 	if _, err := domain.ParseSkillName(string(name)); err != nil {
 		return nil, err
 	}
@@ -86,7 +85,7 @@ func nextLine(b []byte) (line, rest []byte, ok bool) {
 	return bytes.TrimSuffix(b[:i], []byte{'\r'}), b[i+1:], true
 }
 
-func decodeFrontmatter(raw []byte) (string, string, map[string]any, error) {
+func decodeFrontmatter(raw []byte) (string, string, *yaml.Node, error) {
 	var doc yaml.Node
 	if err := yaml.Unmarshal(raw, &doc); err != nil {
 		return "", "", nil, fmt.Errorf("%w: %v", domain.ErrInvalidFrontmatter, err)
@@ -105,15 +104,19 @@ func decodeFrontmatter(raw []byte) (string, string, map[string]any, error) {
 		nameSet     bool
 		descSet     bool
 	)
-	metaNode := &yaml.Node{Kind: yaml.MappingNode, Tag: "!!map"}
+	meta := &yaml.Node{Kind: yaml.MappingNode, Tag: "!!map"}
 	for i := 0; i < len(root.Content); i += 2 {
 		key := root.Content[i]
 		val := root.Content[i+1]
 		if key.Kind != yaml.ScalarNode || key.Tag != "!!str" {
-			return "", "", nil, domain.ErrInvalidFrontmatter
+			meta.Content = append(meta.Content, key, val)
+			continue
 		}
 		switch key.Value {
 		case "name":
+			if nameSet {
+				return "", "", nil, domain.ErrInvalidFrontmatter
+			}
 			s, present, err := yamlString(val)
 			if err != nil {
 				return "", "", nil, err
@@ -124,6 +127,9 @@ func decodeFrontmatter(raw []byte) (string, string, map[string]any, error) {
 			name = s
 			nameSet = true
 		case "description":
+			if descSet {
+				return "", "", nil, domain.ErrInvalidFrontmatter
+			}
 			s, present, err := yamlString(val)
 			if err != nil {
 				return "", "", nil, err
@@ -134,7 +140,7 @@ func decodeFrontmatter(raw []byte) (string, string, map[string]any, error) {
 			description = s
 			descSet = true
 		default:
-			metaNode.Content = append(metaNode.Content, key, val)
+			meta.Content = append(meta.Content, key, val)
 		}
 	}
 	if !nameSet {
@@ -143,12 +149,8 @@ func decodeFrontmatter(raw []byte) (string, string, map[string]any, error) {
 	if !descSet {
 		return "", "", nil, domain.ErrMissingDescription
 	}
-	if len(metaNode.Content) == 0 {
+	if len(meta.Content) == 0 {
 		return name, description, nil, nil
-	}
-	var meta map[string]any
-	if err := metaNode.Decode(&meta); err != nil {
-		return "", "", nil, fmt.Errorf("%w: %v", domain.ErrInvalidFrontmatter, err)
 	}
 	return name, description, meta, nil
 }
@@ -163,26 +165,17 @@ func yamlString(v *yaml.Node) (string, bool, error) {
 	return v.Value, true, nil
 }
 
-func marshalFrontmatter(name, description string, meta map[string]any) ([]byte, error) {
+func marshalFrontmatter(name, description string, meta *yaml.Node) ([]byte, error) {
+	if meta != nil && (meta.Kind != yaml.MappingNode || len(meta.Content)%2 != 0) {
+		return nil, domain.ErrInvalidFrontmatter
+	}
 	root := &yaml.Node{Kind: yaml.MappingNode}
-	if err := appendPair(root, "name", name); err != nil {
-		return nil, err
-	}
-	if err := appendPair(root, "description", description); err != nil {
-		return nil, err
-	}
-	keys := make([]string, 0, len(meta))
-	for k := range meta {
-		if k == "name" || k == "description" {
-			continue
-		}
-		keys = append(keys, k)
-	}
-	sort.Strings(keys)
-	for _, k := range keys {
-		if err := appendPair(root, k, meta[k]); err != nil {
-			return nil, err
-		}
+	root.Content = append(root.Content,
+		plainString("name"), plainString(name),
+		plainString("description"), plainString(description),
+	)
+	if meta != nil {
+		root.Content = append(root.Content, meta.Content...)
 	}
 	out, err := yaml.Marshal(root)
 	if err != nil {
@@ -191,64 +184,6 @@ func marshalFrontmatter(name, description string, meta map[string]any) ([]byte, 
 	return out, nil
 }
 
-func appendPair(m *yaml.Node, key string, value any) error {
-	kn := &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: key}
-	vn, err := encodeValue(value)
-	if err != nil {
-		return err
-	}
-	m.Content = append(m.Content, kn, vn)
-	return nil
-}
-
-func encodeValue(v any) (*yaml.Node, error) {
-	switch t := v.(type) {
-	case nil:
-		return &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!null", Value: "null"}, nil
-	case string:
-		return &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: t, Style: yaml.DoubleQuotedStyle}, nil
-	case bool:
-		val := "false"
-		if t {
-			val = "true"
-		}
-		return &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!bool", Value: val}, nil
-	case int:
-		return intNode(int64(t)), nil
-	case int64:
-		return intNode(t), nil
-	case uint64:
-		return &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!int", Value: strconv.FormatUint(t, 10)}, nil
-	case float64:
-		return &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!float", Value: strconv.FormatFloat(t, 'f', -1, 64)}, nil
-	case map[string]any:
-		n := &yaml.Node{Kind: yaml.MappingNode}
-		keys := make([]string, 0, len(t))
-		for k := range t {
-			keys = append(keys, k)
-		}
-		sort.Strings(keys)
-		for _, k := range keys {
-			if err := appendPair(n, k, t[k]); err != nil {
-				return nil, err
-			}
-		}
-		return n, nil
-	case []any:
-		n := &yaml.Node{Kind: yaml.SequenceNode}
-		for _, item := range t {
-			en, err := encodeValue(item)
-			if err != nil {
-				return nil, err
-			}
-			n.Content = append(n.Content, en)
-		}
-		return n, nil
-	default:
-		return nil, fmt.Errorf("%w: unsupported frontmatter value %T", domain.ErrInvalidFrontmatter, v)
-	}
-}
-
-func intNode(n int64) *yaml.Node {
-	return &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!int", Value: strconv.FormatInt(n, 10)}
+func plainString(s string) *yaml.Node {
+	return &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: s}
 }
