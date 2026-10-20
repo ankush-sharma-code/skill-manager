@@ -194,7 +194,9 @@ func (r *Repo) Put(ctx context.Context, skill domain.Skill, files map[string][]b
 	return nil
 }
 
-// Delete moves <root>/<name> to <root>/.trash/<name>-<unix nano>.
+// Delete moves <root>/<name> to <root>/.trash/<name>-<unix nano>-<rand>.
+// .trash grows without bound.
+// TODO: a later change should purge old trash entries.
 func (r *Repo) Delete(ctx context.Context, name domain.SkillName) error {
 	if err := ctx.Err(); err != nil {
 		return err
@@ -231,13 +233,29 @@ func (r *Repo) Delete(ctx context.Context, name domain.SkillName) error {
 	if err := r.ensureRealDir(trashDir); err != nil {
 		return err
 	}
-	dest := filepath.Join(trashDir, string(parsed)+"-"+strconv.FormatInt(r.clock.Now().UTC().UnixNano(), 10))
-	if _, err := r.fs.Lstat(dest); err == nil {
-		dest += "-2"
-	} else if !errors.Is(err, fs.ErrNotExist) {
+	stamp := strconv.FormatInt(r.clock.Now().UTC().UnixNano(), 10)
+	var last string
+	for attempt := 0; attempt < 8; attempt++ {
+		suffix, err := r.randomHex(8)
+		if err != nil {
+			return err
+		}
+		dest := filepath.Join(trashDir, string(parsed)+"-"+stamp+"-"+suffix)
+		last = dest
+		_, err = r.fs.Lstat(dest)
+		if err == nil {
+			continue
+		}
+		if !errors.Is(err, fs.ErrNotExist) {
+			return err
+		}
+		err = r.fs.Rename(src, dest)
+		if errors.Is(err, fs.ErrExist) {
+			continue
+		}
 		return err
 	}
-	return r.fs.Rename(src, dest)
+	return fmt.Errorf("trash name still exists: %s", last)
 }
 
 func (r *Repo) rejectSymlink(path string) error {

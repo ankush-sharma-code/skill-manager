@@ -3,6 +3,7 @@ package repo_test
 import (
 	"bytes"
 	"context"
+	"encoding/hex"
 	"errors"
 	"io/fs"
 	"path/filepath"
@@ -97,7 +98,20 @@ func TestRepoRoundTrip(t *testing.T) {
 			if _, err := fsys.Lstat(filepath.Join(root, "demo")); !errors.Is(err, fs.ErrNotExist) {
 				t.Fatalf("skill dir after delete = %v", err)
 			}
-			trash := filepath.Join(root, ".trash", "demo-"+strconv.FormatInt(clock.Now().UnixNano(), 10))
+			prefix := "demo-" + strconv.FormatInt(clock.Now().UnixNano(), 10) + "-"
+			var trash string
+			trashEnts, err := fsys.ReadDir(filepath.Join(root, ".trash"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			for _, ent := range trashEnts {
+				if strings.HasPrefix(ent.Name(), prefix) {
+					trash = filepath.Join(root, ".trash", ent.Name())
+				}
+			}
+			if trash == "" {
+				t.Fatalf("no trash entry with prefix %s", prefix)
+			}
 			body, err := fsys.ReadFile(filepath.Join(trash, "notes.txt"))
 			if err != nil {
 				t.Fatal(err)
@@ -681,7 +695,9 @@ func TestDeleteTrashEdges(t *testing.T) {
 		if err := store.Put(ctx, skillWith(name, "Says hello", nil), files); err != nil {
 			t.Fatal(err)
 		}
-		blocked := filepath.Join(root, ".trash", "demo-"+strconv.FormatInt(clock.Now().UTC().UnixNano(), 10))
+		store.SetRand(&countingRand{})
+		stamp := strconv.FormatInt(clock.Now().UTC().UnixNano(), 10)
+		blocked := filepath.Join(root, ".trash", "demo-"+stamp+"-"+hex.EncodeToString([]byte{0, 1, 2, 3, 4, 5, 6, 7}))
 		if err := fsys.MkdirAll(blocked, 0o755); err != nil {
 			t.Fatal(err)
 		}
@@ -694,9 +710,10 @@ func TestDeleteTrashEdges(t *testing.T) {
 		if _, err := fsys.Lstat(blocked); err != nil {
 			t.Fatalf("blocked trash missing: %v", err)
 		}
-		body, err := fsys.ReadFile(blocked + "-2/SKILL.md")
+		retried := filepath.Join(root, ".trash", "demo-"+stamp+"-"+hex.EncodeToString([]byte{8, 9, 10, 11, 12, 13, 14, 15}))
+		body, err := fsys.ReadFile(retried + "/SKILL.md")
 		if err != nil || !bytes.Contains(body, []byte("ok\n")) {
-			t.Fatalf("trash -2 = %q %v", body, err)
+			t.Fatalf("retried trash = %q %v", body, err)
 		}
 	})
 }
