@@ -10,7 +10,7 @@ struct AppShell<Content: View, Detail: View>: View {
             SidebarColumn(model: model)
                 .frame(width: Measure.sidebar)
             content()
-                .frame(width: Measure.list)
+                .frame(minWidth: 260, idealWidth: Measure.list, maxWidth: Measure.list)
             detail()
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
@@ -166,14 +166,27 @@ struct SkillListColumn: View {
             .padding(.top, Spacing.sm)
             .padding(.bottom, Spacing.xs)
 
-            ScrollView {
-                LazyVStack(spacing: Spacing.xxs) {
-                    ForEach(model.visibleSkills) { skill in
-                        skillButton(skill)
+            ScrollViewReader { proxy in
+                ScrollView {
+                    LazyVStack(spacing: Spacing.xxs) {
+                        ForEach(model.visibleSkills) { skill in
+                            skillButton(skill)
+                                .id(skill.id)
+                        }
+                    }
+                    .padding(.horizontal, Spacing.xs)
+                    .padding(.bottom, Spacing.sm)
+                }
+                .onChange(of: model.selection) { _, id in
+                    guard let id else { return }
+                    if let animation = Motion.animation(.snappy, reduceMotion: reduceMotion) {
+                        withAnimation(animation) {
+                            proxy.scrollTo(id, anchor: .center)
+                        }
+                    } else {
+                        proxy.scrollTo(id, anchor: .center)
                     }
                 }
-                .padding(.horizontal, Spacing.xs)
-                .padding(.bottom, Spacing.sm)
             }
             .focusable()
             .onKeyPress(.downArrow) {
@@ -190,7 +203,7 @@ struct SkillListColumn: View {
 
     private func skillButton(_ skill: SkillFixture) -> some View {
         let selected = model.selection == skill.id && model.section != .tools
-        return HStack(alignment: .top, spacing: Spacing.xxs) {
+        return ZStack(alignment: .trailing) {
             Button {
                 withAnimation(Motion.animation(.snappy, reduceMotion: reduceMotion)) {
                     if skill.flags.contains(.conflict), model.section == .conflicts {
@@ -202,6 +215,7 @@ struct SkillListColumn: View {
             } label: {
                 SkillRowLabel(skill: skill, morphs: morphs, isSelected: selected, namespace: namespace)
                     .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.trailing, skill.flags.contains(.conflict) ? 76 : 0)
             }
             .buttonStyle(.plain)
             .accessibilityIdentifier("skill-row-\(skill.id)")
@@ -220,6 +234,8 @@ struct SkillListColumn: View {
                 }
                 .buttonStyle(.plain)
                 .motionPress()
+                .padding(.trailing, Spacing.xs)
+                .zIndex(1)
                 .accessibilityIdentifier("conflict-badge-\(skill.id)")
             }
         }

@@ -49,8 +49,19 @@ final class InteractionRecordingTests: XCTestCase {
 
         let badge = app.buttons["conflict-badge-tdd"]
         if badge.waitForExistence(timeout: 4) {
+            let ready = Date().addingTimeInterval(3)
+            while Date() < ready, !badge.isHittable {
+                Thread.sleep(forTimeInterval: 0.15)
+            }
+            print("BADGE frame \(badge.frame) hittable \(badge.isHittable) window \(window.frame)")
             tap(badge, name: "conflict badge", notes: &notes)
-            pause(0.8, frames: &frames)
+            let resolve = app.descendants(matching: .any)["conflict-resolve"]
+            if resolve.waitForExistence(timeout: 3) {
+                pause(0.8, frames: &frames)
+            } else {
+                notes.append("conflict screen missing")
+                pause(0.4, frames: &frames)
+            }
         } else {
             notes.append("conflict badge missing")
         }
