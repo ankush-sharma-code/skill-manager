@@ -21,7 +21,10 @@ struct ErrorStateView: View {
                 .frame(maxWidth: 420)
             HStack(spacing: Spacing.xs) {
                 Button("Start it", action: start)
+                    .keyboardShortcut(.defaultAction)
                     .buttonStyle(.borderedProminent)
+                    .tint(Color.accentColor)
+                    .environment(\.controlActiveState, .active)
                     .motionPress()
                     .accessibilityIdentifier("start-service")
                 Button("Retry", action: retry)

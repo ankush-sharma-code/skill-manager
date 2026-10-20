@@ -61,6 +61,9 @@ final class MockRenderTests: XCTestCase {
                 let rep = NSBitmapImageRep(data: data)
                 XCTAssertGreaterThan(rep?.pixelsWide ?? 0, 200, name)
                 XCTAssertGreaterThan(data.count, 5_000, name)
+                if screen == .errorState {
+                    XCTAssertTrue(hasAccentFill(data, scheme: scheme), "\(name) primary button is not accent filled")
+                }
                 print("MOCK_RENDER_WROTE \(url.path) \(data.count)")
             }
         }
@@ -74,7 +77,12 @@ final class MockRenderTests: XCTestCase {
             .preferredColorScheme(scheme)
             .frame(width: size.width, height: size.height)
         let appearance = NSAppearance(named: scheme == .dark ? .darkAqua : .aqua)
-        let hosted = try renderHosted(view, size: size, appearance: appearance)
+        let hosted = try renderHosted(
+            view,
+            size: size,
+            appearance: appearance,
+            activates: screen == .errorState
+        )
         if isUseful(hosted) {
             return hosted
         }
@@ -94,24 +102,37 @@ final class MockRenderTests: XCTestCase {
         throw CocoaError(.fileWriteUnknown)
     }
 
-    private func renderHosted(_ view: some View, size: CGSize, appearance: NSAppearance?) throws -> Data {
+    private func renderHosted(
+        _ view: some View,
+        size: CGSize,
+        appearance: NSAppearance?,
+        activates: Bool = false
+    ) throws -> Data {
         let hosting = NSHostingView(rootView: view)
         hosting.appearance = appearance
         hosting.frame = NSRect(origin: .zero, size: size)
-        let window = NSWindow(
+        let window = SnapshotWindow(
             contentRect: NSRect(origin: .zero, size: size),
             styleMask: [.borderless],
             backing: .buffered,
             defer: false
         )
+        window.canTakeKey = activates
         window.appearance = appearance
         window.isReleasedWhenClosed = false
         window.contentView = hosting
         window.setContentSize(size)
-        window.orderFrontRegardless()
+        if activates {
+            NSApp.setActivationPolicy(.regular)
+            NSApp.activate(ignoringOtherApps: true)
+            window.makeKeyAndOrderFront(nil)
+        } else {
+            window.orderFrontRegardless()
+        }
         window.displayIfNeeded()
         hosting.layoutSubtreeIfNeeded()
-        RunLoop.current.run(mode: .default, before: Date().addingTimeInterval(0.12))
+        let settle = activates ? 0.25 : 0.12
+        RunLoop.current.run(mode: .default, before: Date().addingTimeInterval(settle))
         let scale = max(window.backingScaleFactor, 2)
         let pixelsWide = Int(size.width * scale)
         let pixelsHigh = Int(size.height * scale)
@@ -170,6 +191,34 @@ final class MockRenderTests: XCTestCase {
         if Double(yellow) / Double(total) > 0.45 { return false }
         return colors.count >= 8
     }
+
+    private func hasAccentFill(_ data: Data, scheme: ColorScheme) -> Bool {
+        guard let rep = NSBitmapImageRep(data: data) else { return false }
+        var hits = 0
+        let step = 4
+        for y in stride(from: 0, to: rep.pixelsHigh, by: step) {
+            for x in stride(from: 0, to: rep.pixelsWide, by: step) {
+                guard let color = rep.colorAt(x: x, y: y) else { continue }
+                let red = color.redComponent
+                let green = color.greenComponent
+                let blue = color.blueComponent
+                let matches = scheme == .dark
+                    ? red > 0.12 && red < 0.40 && green > 0.45 && green < 0.75 && blue > 0.85
+                    : red < 0.18 && green > 0.32 && green < 0.68 && blue > 0.85
+                if matches {
+                    hits += 1
+                }
+            }
+        }
+        return hits > 40
+    }
+}
+
+private final class SnapshotWindow: NSWindow {
+    var canTakeKey = false
+
+    override var canBecomeKey: Bool { canTakeKey }
+    override var canBecomeMain: Bool { canTakeKey }
 }
 
 enum ArtifactPaths {
