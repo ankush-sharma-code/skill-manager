@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"io"
 	"io/fs"
 	"path"
 	"path/filepath"
@@ -375,3 +376,15 @@ func (r *Repo) tempPath(prefix, name string) (string, error) {
 func (r *Repo) removeQuiet(path string) {
 	_ = r.fs.RemoveAll(path)
 }
+
+// Problems returns skill directories the last List could not load.
+func (r *Repo) Problems() []ports.SkillProblem { return nil }
+
+// Recover finishes or undoes a torn publish left under .stage.
+func (r *Repo) Recover(context.Context) error { return errors.New("not implemented") }
+
+// SetRand supplies bytes for trash names and stage ids.
+func (r *Repo) SetRand(io.Reader) {}
+
+// SetLog receives a best-effort backup removal failure.
+func (r *Repo) SetLog(func(string, ...any)) {}

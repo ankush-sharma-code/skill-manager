@@ -34,12 +34,23 @@ type FS interface {
 	MkdirAll(p string, mode fs.FileMode) error
 }
 
-// Repo stores skills at <root>/<name>/. Delete moves a skill to <root>/.trash/<name>-<ts>.
+// SkillProblem is one skill directory List could not load.
+type SkillProblem struct {
+	Name domain.SkillName
+	Err  error
+}
+
+// Repo stores skills at <root>/<name>/.
+// Delete moves a skill to <root>/.trash/<name>-<ts>-<rand>.
+// .trash grows without bound.
+// TODO: a later change should purge old trash entries.
 type Repo interface {
 	List(ctx context.Context) ([]domain.Skill, error)
+	Problems() []SkillProblem
 	Get(ctx context.Context, name domain.SkillName) (domain.Skill, error)
 	Put(ctx context.Context, skill domain.Skill, files map[string][]byte) error
 	Delete(ctx context.Context, name domain.SkillName) error
+	Recover(ctx context.Context) error
 }
 
 // LogFile is one transcript file a tool left on disk.
