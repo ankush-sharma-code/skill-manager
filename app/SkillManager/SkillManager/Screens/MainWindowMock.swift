@@ -178,7 +178,7 @@ struct SkillListColumn: View {
                     .padding(.bottom, Spacing.sm)
                 }
                 .onChange(of: model.selection) { _, id in
-                    guard let id else { return }
+                    guard !id.isEmpty else { return }
                     if let animation = Motion.animation(.snappy, reduceMotion: reduceMotion) {
                         withAnimation(animation) {
                             proxy.scrollTo(id, anchor: .center)
