@@ -306,13 +306,18 @@ func (r *Repo) rejectSymlink(path string) error {
 
 // ensureRealDir creates path when it is missing. An existing symlink is refused
 // before any create, so the call does not follow it out of the root.
+// The repo root and .stage are created with mode 0700.
+//
+// Lstat and the later create or rename are separate steps. processLock keeps
+// goroutines in this process from interleaving them. Another process can still
+// replace the path in between. See docs/SECURITY.md.
 func (r *Repo) ensureRealDir(path string) error {
 	if err := r.rejectSymlink(path); err != nil {
 		return err
 	}
 	info, err := r.fs.Lstat(path)
 	if errors.Is(err, fs.ErrNotExist) {
-		if err := r.fs.MkdirAll(path, 0o755); err != nil {
+		if err := r.fs.MkdirAll(path, dirMode(r.root, path)); err != nil {
 			return err
 		}
 		info, err = r.fs.Lstat(path)
@@ -327,6 +332,13 @@ func (r *Repo) ensureRealDir(path string) error {
 		return fmt.Errorf("%s is not a directory", path)
 	}
 	return nil
+}
+
+func dirMode(root, path string) fs.FileMode {
+	if path == root || path == filepath.Join(root, ".stage") || path == filepath.Join(root, ".stage", "rejected") {
+		return 0o700
+	}
+	return 0o755
 }
 
 func asciiEqual(a, b string) bool {
@@ -560,6 +572,7 @@ func (r *Repo) Recover(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+	// A symlinked .stage would make the recovery renames follow the link out of the root.
 	if info.Mode()&fs.ModeSymlink != 0 {
 		return fmt.Errorf("%w: %s", ErrSymlink, stage)
 	}
