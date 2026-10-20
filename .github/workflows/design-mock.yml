@@ -58,13 +58,17 @@ jobs:
       - name: Collect artifacts
         if: always()
         run: |
-          set -euo pipefail
           mkdir -p artifacts/renders
           cp -v /tmp/skill-manager-renders/*.png artifacts/renders/ || true
-          find /tmp /var/folders "$HOME" "$GITHUB_WORKSPACE/build" -name 'skill-manager-interaction-light.mov' -print 2>/dev/null | while read -r movie; do
+          movie=""
+          while IFS= read -r candidate; do
+            if [ -z "$movie" ]; then
+              movie="$candidate"
+            fi
+          done < <(find /tmp /var/folders "$HOME" "$GITHUB_WORKSPACE/build" -name 'skill-manager-interaction-light.mov' -print 2>/dev/null || true)
+          if [ -n "$movie" ]; then
             cp -v "$movie" artifacts/interaction-light.mov
-            break
-          done
+          fi
           find artifacts -type f -print
 
       - uses: actions/upload-artifact@v4

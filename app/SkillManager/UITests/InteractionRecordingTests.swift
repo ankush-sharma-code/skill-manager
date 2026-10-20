@@ -33,9 +33,7 @@ final class InteractionRecordingTests: XCTestCase {
 
         let architect = app.buttons["skill-row-architect"]
         if architect.waitForExistence(timeout: 8) {
-            architect.hover()
-            pause(0.45, frames: &frames)
-            architect.click()
+            tap(architect, name: "architect row", notes: &notes)
             pause(0.7, frames: &frames)
         } else {
             notes.append("architect row missing")
@@ -43,9 +41,7 @@ final class InteractionRecordingTests: XCTestCase {
 
         let tdd = app.buttons["skill-row-tdd"]
         if tdd.waitForExistence(timeout: 4) {
-            tdd.hover()
-            pause(0.35, frames: &frames)
-            tdd.click()
+            tap(tdd, name: "tdd row", notes: &notes)
             pause(0.7, frames: &frames)
         } else {
             notes.append("tdd row missing")
@@ -53,9 +49,12 @@ final class InteractionRecordingTests: XCTestCase {
 
         let sync = app.buttons["sync-now"]
         if sync.waitForExistence(timeout: 4) {
-            sync.hover()
-            pause(0.25, frames: &frames)
-            sync.click()
+            if sync.isHittable {
+                tap(sync, name: "sync button", notes: &notes)
+            } else {
+                notes.append("sync button offscreen")
+                app.typeKey("r", modifierFlags: .command)
+            }
             pause(0.9, frames: &frames)
         } else {
             notes.append("sync button missing")
@@ -63,7 +62,7 @@ final class InteractionRecordingTests: XCTestCase {
 
         app.typeKey("k", modifierFlags: .command)
         let search = app.textFields["palette-search"]
-        if search.waitForExistence(timeout: 4) {
+        if search.waitForExistence(timeout: 4), search.isHittable {
             search.click()
             search.typeText("sync")
             pause(0.7, frames: &frames)
@@ -77,11 +76,11 @@ final class InteractionRecordingTests: XCTestCase {
         let forward = app.buttons["wizard-continue"]
         if forward.waitForExistence(timeout: 5) {
             pause(0.45, frames: &frames)
-            forward.click()
+            tap(forward, name: "wizard continue", notes: &notes)
             pause(0.65, frames: &frames)
-            app.buttons["wizard-continue"].click()
+            tap(app.buttons["wizard-continue"], name: "wizard continue", notes: &notes)
             pause(0.65, frames: &frames)
-            app.buttons["wizard-back"].click()
+            tap(app.buttons["wizard-back"], name: "wizard back", notes: &notes)
             pause(0.65, frames: &frames)
         } else {
             notes.append("wizard missing")
@@ -122,6 +121,19 @@ final class InteractionRecordingTests: XCTestCase {
         }
         XCTAssertGreaterThan(size, 20_000, "recording was \(size) bytes. \(notes.joined(separator: ", ")). \(captureLog)")
         XCTAssertTrue(notes.isEmpty, notes.joined(separator: ", "))
+    }
+
+    private func tap(_ element: XCUIElement, name: String, notes: inout [String]) {
+        guard element.exists else {
+            notes.append("\(name) missing")
+            return
+        }
+        guard element.isHittable else {
+            notes.append("\(name) offscreen")
+            return
+        }
+        element.hover()
+        element.click()
     }
 
     private func pause(_ seconds: TimeInterval, frames: inout [NSImage]) {
