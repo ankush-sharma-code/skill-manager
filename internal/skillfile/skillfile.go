@@ -4,8 +4,6 @@ import (
 	"errors"
 	"io/fs"
 	"time"
-
-	"github.com/ankush-sharma-code/skill-manager/internal/domain"
 )
 
 var (
@@ -19,20 +17,4 @@ type File struct {
 	Mode    fs.FileMode
 	Content []byte
 	ModTime time.Time
-}
-
-func Parse(skillMD []byte) (domain.SkillName, string, map[string]any, []byte, error) {
-	return "", "", nil, nil, errors.New("not implemented")
-}
-
-func Serialize(name domain.SkillName, description string, meta map[string]any, body []byte) ([]byte, error) {
-	return nil, errors.New("not implemented")
-}
-
-func TreeDigest(files []File) (domain.Digest, error) {
-	return domain.Digest{}, errors.New("not implemented")
-}
-
-func Load(dirName string, files []File) (domain.Skill, error) {
-	return domain.Skill{}, errors.New("not implemented")
 }

@@ -12,7 +12,6 @@ type SkillName string
 // A file entry digest is the SHA-256 of that file's bytes.
 type Digest [32]byte
 
-// FileEntry is one file in a skill tree.
 type FileEntry struct {
 	RelPath string
 	Mode    fs.FileMode
@@ -20,7 +19,6 @@ type FileEntry struct {
 	Digest  Digest
 }
 
-// Provenance records where a skill came from.
 type Provenance struct {
 	Kind     string
 	TargetID string
@@ -59,7 +57,6 @@ const (
 	SyncCopy    SyncMode = "copy"
 )
 
-// Target is a configured tool directory that receives skills.
 type Target struct {
 	ID      string
 	Kind    TargetKind
@@ -81,7 +78,6 @@ const (
 	SlotBroken         SlotState = "Broken"
 )
 
-// Observed is what is on disk in one target slot.
 type Observed struct {
 	Target string
 	Name   SkillName
@@ -90,20 +86,17 @@ type Observed struct {
 	LinkTo string
 }
 
-// SlotKey identifies a ledger entry.
 type SlotKey struct {
 	Target string
 	Name   SkillName
 }
 
-// LedgerEntry is the last state written for one slot.
 type LedgerEntry struct {
 	Digest Digest
 	Mode   SyncMode
 	Time   time.Time
 }
 
-// Ledger is the last state written, per target and skill name.
 type Ledger struct {
 	Entries map[SlotKey]LedgerEntry
 }
@@ -120,7 +113,6 @@ const (
 	ActionSkip       ActionKind = "Skip"
 )
 
-// Action is one step the planner emits.
 type Action struct {
 	Kind   ActionKind
 	Target string
@@ -128,7 +120,6 @@ type Action struct {
 	Reason string
 }
 
-// UsageEvent is one counted skill invocation.
 type UsageEvent struct {
 	Skill   SkillName
 	Tool    string

@@ -50,6 +50,9 @@ func TestParseFrontmatter(t *testing.T) {
 		{name: "missing opening", in: []byte("name: demo\ndescription: Says hello\n"), wantErr: domain.ErrMissingFrontmatter},
 		{name: "missing closing", in: []byte("---\nname: demo\ndescription: Says hello\n"), wantErr: domain.ErrMissingFrontmatter},
 		{name: "missing name", in: []byte("---\ndescription: Says hello\n---\n"), wantErr: domain.ErrMissingName},
+		{name: "null name", in: []byte("---\nname:\ndescription: Says hello\n---\n"), wantErr: domain.ErrMissingName},
+		{name: "numeric name", in: []byte("---\nname: 1\ndescription: Says hello\n---\n"), wantErr: domain.ErrInvalidFrontmatter},
+		{name: "no trailing newline", in: []byte("---\nname: demo\ndescription: Says hello\n---"), want: "demo", desc: "Says hello", body: ""},
 		{name: "missing description", in: []byte("---\nname: demo\n---\n"), wantErr: domain.ErrMissingDescription},
 		{name: "empty description", in: []byte("---\nname: demo\ndescription:\n---\n"), wantErr: domain.ErrMissingDescription},
 		{name: "null description", in: []byte("---\nname: demo\ndescription: null\n---\n"), wantErr: domain.ErrMissingDescription},
@@ -92,6 +95,8 @@ tags:
 config:
   retries: 2
   enabled: true
+ratio: 1.5
+extra: null
 ---
 # Hello
 
@@ -116,6 +121,8 @@ do the thing
 		"note":   "true",
 		"tags":   []any{"a", "b"},
 		"config": map[string]any{"retries": 2, "enabled": true},
+		"ratio":  1.5,
+		"extra":  nil,
 	}
 	if !reflect.DeepEqual(meta, want) {
 		t.Fatalf("meta = %#v", meta)
@@ -124,6 +131,13 @@ do the thing
 	out, err := skillfile.Serialize(name, desc, meta, body)
 	if err != nil {
 		t.Fatalf("Serialize: %v", err)
+	}
+	again, err := skillfile.Serialize(name, desc, meta, body)
+	if err != nil {
+		t.Fatalf("Serialize again: %v", err)
+	}
+	if !bytes.Equal(out, again) {
+		t.Fatalf("serialize changed between calls:\n%s\n%s", out, again)
 	}
 	name2, desc2, meta2, body2, err := skillfile.Parse(out)
 	if err != nil {
@@ -155,6 +169,20 @@ func TestLoadNameMustMatchDirectory(t *testing.T) {
 	_, err = skillfile.Load("alpha", missing)
 	if !errors.Is(err, domain.ErrMissingSkillMD) {
 		t.Fatalf("Load missing SKILL.md error = %v", err)
+	}
+
+	_, err = skillfile.Load("Bad", files)
+	if !errors.Is(err, domain.ErrInvalidName) {
+		t.Fatalf("Load bad directory error = %v", err)
+	}
+
+	_, err = skillfile.Load("alpha", []skillfile.File{{
+		RelPath: "../secret",
+		Mode:    0o644,
+		Content: []byte("x"),
+	}})
+	if !errors.Is(err, skillfile.ErrBadPath) {
+		t.Fatalf("Load bad path error = %v", err)
 	}
 }
 
@@ -191,7 +219,6 @@ func TestTreeDigestStable(t *testing.T) {
 		t.Fatalf("mtime changed digest: %x vs %x", third, first)
 	}
 
-	// Golden listing: sorted relpath, 4-digit perm, lowercase sha256 of content, NUL separators.
 	const want = "cf792702494b5a16bb7f5adf66d0b6451f07e49750719b01182eda72de5dcbd3"
 	if got := hexDigest(first); got != want {
 		t.Fatalf("digest = %s, want %s", got, want)
@@ -249,6 +276,11 @@ func TestLoadDigestMatchesTree(t *testing.T) {
 			Mode:    0o755,
 			Content: []byte("#!/bin/sh\n"),
 			ModTime: time.Unix(11, 0),
+		},
+		{
+			RelPath: "bin",
+			Mode:    fs.ModeDir | 0o755,
+			ModTime: time.Unix(12, 0),
 		},
 	}
 	got, err := skillfile.Load("demo", files)
