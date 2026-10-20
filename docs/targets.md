@@ -62,4 +62,4 @@ An adapter whose tool does not follow symlinks defaults to copy. On this run tha
 
 Cursor stores a managed copy under `~/.cursor/skills` and detects drift by comparing digests. That root is always managed. `AlsoReads` lists target ids a tool is verified to read in addition to its own root. Dedupe of overlapping tool reads uses only that list. The list is empty until a credentialed probe shows a tool reads another root. The probe did not verify that Cursor reads `~/.claude/skills`; the unverified row above stays unverified. When that directory exists, registration reports an info problem: may also be read via ~/.claude/skills.
 
-`~/.agents/skills` is not a default target. Codex still reports it. When that directory exists, Detect reports that the Codex skill root moved from `~/.codex/skills` to `~/.agents/skills`. The managed Codex root stays `~/.codex/skills`.
+`~/.agents/skills` is not a default target. When that directory exists, Detect reports an info problem suggesting the user enable it as a custom target, and takes no action. The managed Codex root stays `~/.codex/skills`.

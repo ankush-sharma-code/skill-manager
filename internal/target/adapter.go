@@ -25,7 +25,7 @@ type Adapter interface {
 }
 
 // DetectResult is what Detect found for one tool.
-// Message contains "moved" when the skill root changed path.
+// Problems carries info that does not change the managed root.
 type DetectResult struct {
 	Installed bool
 	Version   string

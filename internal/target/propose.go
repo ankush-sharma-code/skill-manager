@@ -30,6 +30,10 @@ func Propose(fsys ports.FS, home string) ([]domain.Target, []Problem, error) {
 	}
 	if codexInstalled(fsys, home) {
 		out = append(out, codexTarget(home))
+		agents := filepath.Join(home, ".agents", "skills")
+		if existsDir(fsys, agents) {
+			problems = append(problems, codexAgentsProblem(agents))
+		}
 	}
 	kept, aliases := DedupeRoots(fsys, out)
 	problems = append(problems, aliases...)

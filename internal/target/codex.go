@@ -34,21 +34,25 @@ func (*Codex) Detect(fsys ports.FS, home string) DetectResult {
 		return DetectResult{}
 	}
 	oldPath := filepath.Join(home, ".codex", "skills")
+	out := DetectResult{
+		Installed: true,
+		Roots:     []string{oldPath},
+		Message:   "codex skills root " + oldPath,
+	}
 	newPath := filepath.Join(home, ".agents", "skills")
-	out := DetectResult{Installed: true}
-	if existsDir(fsys, oldPath) {
-		out.Roots = append(out.Roots, oldPath)
+	if existsDir(fsys, newPath) {
+		out.Problems = append(out.Problems, codexAgentsProblem(newPath))
 	}
-	if !existsDir(fsys, newPath) {
-		out.Message = "codex skills root " + oldPath
-		return out
-	}
-	out.Roots = append(out.Roots, newPath)
-	out.Moved = true
-	out.From = oldPath
-	out.To = newPath
-	out.Message = "codex skills root moved from " + oldPath + " to " + newPath
 	return out
+}
+
+func codexAgentsProblem(path string) Problem {
+	return Problem{
+		Level:   LevelInfo,
+		Target:  "codex-user",
+		Path:    path,
+		Message: "enable " + path + " as a custom target",
+	}
 }
 
 func codexInstalled(fsys ports.FS, home string) bool {
