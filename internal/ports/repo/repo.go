@@ -23,7 +23,11 @@ import (
 var ErrNotFound = errors.New("skill not found")
 
 // ErrCaseCollision is returned when a directory name differs only by case.
+// The comparison is ASCII A-Z folding. It does not use Unicode case folding or NFC/NFD.
 var ErrCaseCollision = errors.New("case-insensitive name collision")
+
+// ErrSymlink is returned when a path inside the repo root is a symlink.
+var ErrSymlink = errors.New("symlink under skill root")
 
 // Repo is the skill directory at root, usually ~/.skills.
 type Repo struct {
@@ -131,7 +135,7 @@ func (r *Repo) Put(ctx context.Context, skill domain.Skill, files map[string][]b
 	if err != nil {
 		return err
 	}
-	if err := r.fs.MkdirAll(r.root, 0o755); err != nil {
+	if err := r.ensureRealDir(r.root); err != nil {
 		return err
 	}
 	exact, folded, err := r.classify(string(parsed))
@@ -209,8 +213,11 @@ func (r *Repo) Delete(ctx context.Context, name domain.SkillName) error {
 	if !info.IsDir() || info.Mode()&fs.ModeSymlink != 0 {
 		return ErrNotFound
 	}
+	if err := r.rejectSymlink(r.root); err != nil {
+		return err
+	}
 	trashDir := filepath.Join(r.root, ".trash")
-	if err := r.fs.MkdirAll(trashDir, 0o755); err != nil {
+	if err := r.ensureRealDir(trashDir); err != nil {
 		return err
 	}
 	dest := filepath.Join(trashDir, string(parsed)+"-"+strconv.FormatInt(r.clock.Now().UTC().UnixNano(), 10))
@@ -222,7 +229,49 @@ func (r *Repo) Delete(ctx context.Context, name domain.SkillName) error {
 	return r.fs.Rename(src, dest)
 }
 
+func (r *Repo) rejectSymlink(path string) error {
+	info, err := r.fs.Lstat(path)
+	if errors.Is(err, fs.ErrNotExist) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	if info.Mode()&fs.ModeSymlink != 0 {
+		return fmt.Errorf("%w: %s", ErrSymlink, path)
+	}
+	return nil
+}
+
+// ensureRealDir creates path when it is missing. An existing symlink is refused
+// before any create, so the call does not follow it out of the root.
+func (r *Repo) ensureRealDir(path string) error {
+	if err := r.rejectSymlink(path); err != nil {
+		return err
+	}
+	info, err := r.fs.Lstat(path)
+	if errors.Is(err, fs.ErrNotExist) {
+		if err := r.fs.MkdirAll(path, 0o755); err != nil {
+			return err
+		}
+		info, err = r.fs.Lstat(path)
+	}
+	if err != nil {
+		return err
+	}
+	if info.Mode()&fs.ModeSymlink != 0 {
+		return fmt.Errorf("%w: %s", ErrSymlink, path)
+	}
+	if !info.IsDir() {
+		return fmt.Errorf("%s is not a directory", path)
+	}
+	return nil
+}
+
 func (r *Repo) classify(name string) (exact, folded bool, err error) {
+	if err := r.rejectSymlink(r.root); err != nil {
+		return false, false, err
+	}
 	ents, err := r.fs.ReadDir(r.root)
 	if errors.Is(err, fs.ErrNotExist) {
 		return false, false, nil
