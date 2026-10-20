@@ -3,6 +3,7 @@ package skillfile
 import (
 	"bytes"
 	"fmt"
+	"strings"
 
 	"github.com/ankush-sharma-code/skill-manager/internal/domain"
 	"gopkg.in/yaml.v3"
@@ -94,8 +95,8 @@ func decodeFrontmatter(raw []byte) (string, string, *yaml.Node, error) {
 		return "", "", nil, domain.ErrInvalidFrontmatter
 	}
 	root := doc.Content[0]
-	if len(root.Content)%2 != 0 {
-		return "", "", nil, domain.ErrInvalidFrontmatter
+	if err := validateTree(root, true); err != nil {
+		return "", "", nil, err
 	}
 
 	var (
@@ -156,6 +157,9 @@ func decodeFrontmatter(raw []byte) (string, string, *yaml.Node, error) {
 }
 
 func yamlString(v *yaml.Node) (string, bool, error) {
+	if v.Anchor != "" || v.Alias != nil || v.Kind == yaml.AliasNode || v.Style&yaml.TaggedStyle != 0 {
+		return "", false, domain.ErrInvalidFrontmatter
+	}
 	if v.Tag == "!!null" {
 		return "", false, nil
 	}
@@ -163,6 +167,55 @@ func yamlString(v *yaml.Node) (string, bool, error) {
 		return "", false, domain.ErrInvalidFrontmatter
 	}
 	return v.Value, true, nil
+}
+
+func validateTree(n *yaml.Node, top bool) error {
+	if n == nil {
+		return nil
+	}
+	switch n.Kind {
+	case yaml.DocumentNode, yaml.SequenceNode:
+		for _, child := range n.Content {
+			if err := validateTree(child, false); err != nil {
+				return err
+			}
+		}
+		return nil
+	case yaml.MappingNode:
+		if len(n.Content)%2 != 0 {
+			return domain.ErrInvalidFrontmatter
+		}
+		seen := make(map[string]struct{}, len(n.Content)/2)
+		for i := 0; i < len(n.Content); i += 2 {
+			key := n.Content[i]
+			if err := checkMappingKey(key, top); err != nil {
+				return err
+			}
+			if _, ok := seen[key.Value]; ok {
+				return domain.ErrInvalidFrontmatter
+			}
+			seen[key.Value] = struct{}{}
+			if err := validateTree(n.Content[i+1], false); err != nil {
+				return err
+			}
+		}
+		return nil
+	default:
+		return nil
+	}
+}
+
+func checkMappingKey(key *yaml.Node, top bool) error {
+	if key.Kind != yaml.ScalarNode || key.Alias != nil || key.Anchor != "" || key.Style&yaml.TaggedStyle != 0 {
+		return domain.ErrInvalidFrontmatter
+	}
+	if key.Tag != "" && !strings.HasPrefix(key.Tag, "!!") {
+		return domain.ErrInvalidFrontmatter
+	}
+	if top && key.Tag != "!!str" {
+		return domain.ErrInvalidFrontmatter
+	}
+	return nil
 }
 
 func marshalFrontmatter(name, description string, meta *yaml.Node) ([]byte, error) {
