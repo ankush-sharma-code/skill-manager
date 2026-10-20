@@ -67,7 +67,9 @@ struct DemoRoot: View {
                 InteractiveWizard()
                     .preferredColorScheme(DemoAppearance.colorScheme)
             }
-            .onAppear(perform: placeWindow)
+            .onAppear {
+                placeWindow()
+            }
     }
 
     private func placeWindow(attempt: Int = 0) {
