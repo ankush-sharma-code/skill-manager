@@ -188,13 +188,17 @@ func validateTree(n *yaml.Node, top bool) error {
 		seen := make(map[string]struct{}, len(n.Content)/2)
 		for i := 0; i < len(n.Content); i += 2 {
 			key := n.Content[i]
+			if isMergeKey(key) {
+				return fmt.Errorf("%w: merge key is not allowed", domain.ErrInvalidFrontmatter)
+			}
 			if err := checkMappingKey(key, top); err != nil {
 				return err
 			}
-			if _, ok := seen[key.Value]; ok {
+			id := key.Tag + "\x00" + key.Value
+			if _, ok := seen[id]; ok {
 				return domain.ErrInvalidFrontmatter
 			}
-			seen[key.Value] = struct{}{}
+			seen[id] = struct{}{}
 			if err := validateTree(n.Content[i+1], false); err != nil {
 				return err
 			}
@@ -203,6 +207,10 @@ func validateTree(n *yaml.Node, top bool) error {
 	default:
 		return nil
 	}
+}
+
+func isMergeKey(key *yaml.Node) bool {
+	return key.Tag == "!!merge" || key.Value == "<<"
 }
 
 func checkMappingKey(key *yaml.Node, top bool) error {
