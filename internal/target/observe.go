@@ -15,31 +15,33 @@ import (
 
 const maxTreeDepth = 32
 
-func observe(fsys ports.FS, t domain.Target, repoRoot string) ([]domain.Observed, error) {
+func inspect(fsys ports.FS, t domain.Target, repoRoot string) (Result, error) {
 	root, err := usableRoot(fsys, t.Root)
 	if err != nil {
 		if errors.Is(err, fs.ErrNotExist) {
-			return nil, nil
+			return Result{}, nil
 		}
-		return nil, err
+		return Result{}, err
 	}
 	ents, err := fsys.ReadDir(root)
 	if err != nil {
-		return nil, err
+		return Result{}, err
 	}
 	out := make([]domain.Observed, 0, len(ents))
+	var problems []Problem
 	for _, ent := range ents {
 		if !keepSlot(ent.Name()) {
 			continue
 		}
-		ob, err := classifyAt(fsys, t.ID, root, repoRoot, ent.Name())
+		ob, found, err := classifyAt(fsys, t.ID, root, repoRoot, ent.Name())
 		if err != nil {
-			return nil, err
+			return Result{}, err
 		}
 		out = append(out, ob)
+		problems = append(problems, found...)
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].Name < out[j].Name })
-	return out, nil
+	return Result{Observed: out, Problems: problems}, nil
 }
 
 func classify(fsys ports.FS, t domain.Target, repoRoot, name string) (domain.Observed, error) {
@@ -57,26 +59,32 @@ func classify(fsys ports.FS, t domain.Target, repoRoot, name string) (domain.Obs
 	if err != nil {
 		return domain.Observed{}, err
 	}
-	return classifyAt(fsys, t.ID, root, repoRoot, string(parsed))
+	ob, _, err := classifyAt(fsys, t.ID, root, repoRoot, string(parsed))
+	return ob, err
 }
 
-func classifyAt(fsys ports.FS, id string, root, repoRoot, name string) (domain.Observed, error) {
+func classifyAt(fsys ports.FS, id string, root, repoRoot, name string) (domain.Observed, []Problem, error) {
 	parsed := domain.SkillName(name)
 	slot := filepath.Join(root, name)
 	info, err := fsys.Lstat(slot)
 	if errors.Is(err, fs.ErrNotExist) {
-		return missing(id, parsed), nil
+		return missing(id, parsed), nil, nil
 	}
 	if err != nil {
-		return domain.Observed{}, err
+		return domain.Observed{}, nil, err
 	}
 	if info.Mode()&fs.ModeSymlink != 0 {
-		return classifyLink(fsys, id, repoRoot, name, slot)
+		ob, err := classifyLink(fsys, id, repoRoot, name, slot)
+		return ob, nil, err
 	}
 	if info.IsDir() {
 		return classifyDir(fsys, id, parsed, slot)
 	}
-	return domain.Observed{Target: id, Name: parsed, State: domain.SlotFile}, nil
+	if kind, ok := specialKind(info.Mode()); ok {
+		return domain.Observed{Target: id, Name: parsed, State: domain.SlotFile},
+			[]Problem{irregularProblem(id, name, slot, kind)}, nil
+	}
+	return domain.Observed{Target: id, Name: parsed, State: domain.SlotFile}, nil, nil
 }
 
 func classifyLink(fsys ports.FS, id, repoRoot, name, slot string) (domain.Observed, error) {
@@ -115,12 +123,12 @@ func sameSkill(fsys ports.FS, final, repoRoot, name string) bool {
 	return err == nil && resolved == filepath.Clean(final)
 }
 
-func classifyDir(fsys ports.FS, id string, name domain.SkillName, slot string) (domain.Observed, error) {
-	sum, err := digestDir(fsys, slot)
+func classifyDir(fsys ports.FS, id string, name domain.SkillName, slot string) (domain.Observed, []Problem, error) {
+	sum, problems, err := digestDir(fsys, slot, id, string(name))
 	if err != nil {
-		return domain.Observed{}, err
+		return domain.Observed{}, nil, err
 	}
-	return domain.Observed{Target: id, Name: name, State: domain.SlotDir, Digest: sum}, nil
+	return domain.Observed{Target: id, Name: name, State: domain.SlotDir, Digest: sum}, problems, nil
 }
 
 func missing(id string, name domain.SkillName) domain.Observed {
@@ -145,15 +153,26 @@ func slotElement(name string) bool {
 	return !strings.ContainsAny(name, `/\`)
 }
 
-func digestDir(fsys ports.FS, dir string) (domain.Digest, error) {
-	var files []skillfile.File
-	if err := collect(fsys, dir, "", 0, &files); err != nil {
-		return domain.Digest{}, err
+func digestDir(fsys ports.FS, dir, target, skill string) (domain.Digest, []Problem, error) {
+	g := &gather{target: target, skill: skill}
+	if err := collect(fsys, dir, "", 0, g); err != nil {
+		return domain.Digest{}, nil, err
 	}
-	return skillfile.TreeDigest(files)
+	sum, err := skillfile.TreeDigest(g.files)
+	if err != nil {
+		return domain.Digest{}, nil, err
+	}
+	return sum, g.problems, nil
 }
 
-func collect(fsys ports.FS, dir, relDir string, depth int, files *[]skillfile.File) error {
+type gather struct {
+	files    []skillfile.File
+	problems []Problem
+	target   string
+	skill    string
+}
+
+func collect(fsys ports.FS, dir, relDir string, depth int, g *gather) error {
 	if depth > maxTreeDepth {
 		return errors.New("skill tree too deep")
 	}
@@ -162,14 +181,14 @@ func collect(fsys ports.FS, dir, relDir string, depth int, files *[]skillfile.Fi
 		return err
 	}
 	for _, ent := range ents {
-		if err := collectEntry(fsys, dir, relDir, depth, ent.Name(), files); err != nil {
+		if err := collectEntry(fsys, dir, relDir, depth, ent.Name(), g); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func collectEntry(fsys ports.FS, dir, relDir string, depth int, name string, files *[]skillfile.File) error {
+func collectEntry(fsys ports.FS, dir, relDir string, depth int, name string, g *gather) error {
 	abs := filepath.Join(dir, name)
 	rel := childRel(relDir, name)
 	info, err := fsys.Lstat(abs)
@@ -177,12 +196,42 @@ func collectEntry(fsys ports.FS, dir, relDir string, depth int, name string, fil
 		return err
 	}
 	if info.Mode()&fs.ModeSymlink != 0 {
-		return appendLink(fsys, abs, rel, info.Mode(), files)
+		return appendLink(fsys, abs, rel, info.Mode(), &g.files)
 	}
 	if info.IsDir() {
-		return collect(fsys, abs, rel, depth+1, files)
+		return collect(fsys, abs, rel, depth+1, g)
 	}
-	return appendFile(fsys, abs, rel, info.Mode(), files)
+	if kind, ok := specialKind(info.Mode()); ok {
+		g.problems = append(g.problems, irregularProblem(g.target, g.skill, abs, kind))
+		return nil
+	}
+	return appendFile(fsys, abs, rel, info.Mode(), &g.files)
+}
+
+func specialKind(mode fs.FileMode) (string, bool) {
+	switch {
+	case mode&fs.ModeNamedPipe != 0:
+		return "fifo", true
+	case mode&fs.ModeSocket != 0:
+		return "socket", true
+	case mode&fs.ModeDevice != 0:
+		return "device", true
+	default:
+		return "", !mode.IsRegular()
+	}
+}
+
+func irregularProblem(target, skill, path, kind string) Problem {
+	if kind == "" {
+		kind = "non-regular file"
+	}
+	return Problem{
+		Level:   LevelConflict,
+		Target:  target,
+		Path:    path,
+		Message: kind + " is not a regular file",
+		Names:   []string{skill},
+	}
 }
 
 func appendLink(fsys ports.FS, abs, rel string, mode fs.FileMode, files *[]skillfile.File) error {

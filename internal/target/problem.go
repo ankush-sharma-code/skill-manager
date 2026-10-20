@@ -91,11 +91,7 @@ func ValidateRoot(resolved, home, repo string, custom bool) error {
 	return nil
 }
 
-// Inspect observes a target. Problems stay empty until the fixes record them.
+// Inspect observes a target and returns problems found in the tree.
 func Inspect(fsys ports.FS, t domain.Target, repoRoot string) (Result, error) {
-	obs, err := observe(fsys, t, repoRoot)
-	if err != nil {
-		return Result{}, err
-	}
-	return Result{Observed: obs}, nil
+	return inspect(fsys, t, repoRoot)
 }
