@@ -1,0 +1,4 @@
+{"fixture_header":true,"format":"codex-rollout-jsonl","format_version":"synthetic-1","provenance":"synthetic","unverified":true}
+{"timestamp":"2026-01-02T03:04:05.000Z","type":"session_meta","payload":{"id":"66666666-6666-4666-8666-666666666668","cwd":"/tmp/demo","originator":"synthetic","cli_version":"0.0.0","source":"cli"}}
+{"timestamp":"2026-01-02T03:04:06.000Z","type":"response_item","payload":{"type":"function_call","name":"exec_command","call_id":"call-skill","arguments":"{\"cmd\": \"cat /tmp/demo/.agents/skills/example-skill/SKILL.md\", \"workdir\": \"/tmp/demo\"}"}}
+{"timestamp":"2026-01-02T03:04:07.000Z","type":"response_item","payload":{"type":"function_call_output","call_id":"call-orphan","output":"opened /tmp/demo/.agents/skills/orphan-skill/SKILL.md"}}
