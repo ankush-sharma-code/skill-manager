@@ -29,7 +29,7 @@ struct EmptySkillsMock: View {
 }
 
 struct LoadingSkillsMock: View {
-    @State private var model = DemoModel(skills: [], selection: "")
+    @State private var model = DemoModel(skills: [], selection: "", reportsLoading: true)
 
     var body: some View {
         AppShell(model: model) {

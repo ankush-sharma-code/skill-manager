@@ -13,13 +13,14 @@ final class DemoModel {
     var syncPhase: SyncPhase = .idle
     var displayedSynced: Int
     var wizardPresented = false
+    var reportsLoading: Bool
 
     enum SyncPhase: Equatable {
         case idle
         case complete
     }
 
-    init(skills: [SkillFixture] = FixtureLibrary.skills, selection: String? = nil) {
+    init(skills: [SkillFixture] = FixtureLibrary.skills, selection: String? = nil, reportsLoading: Bool = false) {
         self.skills = skills
         if let selection {
             self.selection = selection
@@ -27,6 +28,7 @@ final class DemoModel {
             self.selection = skills.first { $0.id == "poteto-mode" }?.id ?? skills.first?.id ?? ""
         }
         displayedSynced = FixtureLibrary.syncedSlots(in: skills)
+        self.reportsLoading = reportsLoading
     }
 
     var visibleSkills: [SkillFixture] {
@@ -62,6 +64,7 @@ final class DemoModel {
 
     var statusKind: StatusKind {
         if syncPhase == .complete { return .ok }
+        if reportsLoading || slotCount == 0 { return .attention }
         if conflictCount > 0 { return .conflict }
         if driftCount > 0 { return .attention }
         return .ok
@@ -69,6 +72,8 @@ final class DemoModel {
 
     var statusTitle: String {
         if syncPhase == .complete { return "Sync complete" }
+        if reportsLoading { return "Loading" }
+        if slotCount == 0 { return "Waiting for skills" }
         if conflictCount > 0 { return "\(conflictCount) conflicts" }
         if driftCount > 0 { return "Drift" }
         return "In sync"

@@ -26,19 +26,26 @@ struct Sparkline: View {
         .frame(height: Measure.sparklineHeight)
         .accessibilityLabel("Usage over 30 days")
         .onAppear {
-            guard playsIntro, !reduceMotion else {
-                revealed = true
-                return
-            }
-            revealed = true
+            playReveal()
         }
         .onChange(of: values) { _, _ in
-            revealed = true
+            playReveal()
         }
     }
 
     private var shown: Bool {
         !playsIntro || reduceMotion || revealed
+    }
+
+    private func playReveal() {
+        guard playsIntro, !reduceMotion else {
+            revealed = true
+            return
+        }
+        revealed = false
+        DispatchQueue.main.async {
+            revealed = true
+        }
     }
 
     private func barHeight(_ value: Int, plot: CGFloat) -> CGFloat {

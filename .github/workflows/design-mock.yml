@@ -41,6 +41,8 @@ jobs:
         working-directory: app/SkillManager
         run: |
           set -euo pipefail
+          osascript -e 'tell application "System Events" to tell appearance preferences to set dark mode to false' || true
+          defaults delete NSGlobalDomain AppleInterfaceStyle || true
           xcodebuild test \
             -project SkillManager.xcodeproj \
             -scheme SkillManager \
@@ -59,9 +61,11 @@ jobs:
           set -euo pipefail
           mkdir -p artifacts/renders
           cp -v /tmp/skill-manager-renders/*.png artifacts/renders/ || true
-          cp -v /tmp/skill-manager-interaction-light.mov artifacts/ || true
+          find /tmp /var/folders "$HOME" "$GITHUB_WORKSPACE/build" -name 'skill-manager-interaction-light.mov' -print 2>/dev/null | while read -r movie; do
+            cp -v "$movie" artifacts/interaction-light.mov
+            break
+          done
           find artifacts -type f -print
-          find /tmp "$GITHUB_WORKSPACE/build" -name '*.png' -o -name '*.mov' -o -name '*.log' | head -80
 
       - uses: actions/upload-artifact@v4
         if: always()
