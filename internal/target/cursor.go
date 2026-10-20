@@ -31,31 +31,25 @@ func (*Cursor) DefaultTargets(home string) []domain.Target {
 	return []domain.Target{cursorTarget(home)}
 }
 
-// Skip reports that Cursor should not get its own root.
-// ~/.claude/skills present would register the same skill on a second root.
-// The macOS probe did not verify that Cursor reads that directory.
-func (c *Cursor) Skip(fsys ports.FS, home string) bool {
-	if !cursorInstalled(fsys, home) {
-		return false
-	}
-	return existsDir(fsys, filepath.Join(home, ".claude", "skills"))
-}
-
-func (c *Cursor) Detect(fsys ports.FS, home string) DetectResult {
+func (*Cursor) Detect(fsys ports.FS, home string) DetectResult {
 	if !cursorInstalled(fsys, home) {
 		return DetectResult{}
 	}
-	if c.Skip(fsys, home) {
-		claude := filepath.Join(home, ".claude", "skills")
-		return DetectResult{
-			Installed: true,
-			Skip:      true,
-			Roots:     []string{claude},
-			Message:   "cursor already reads " + claude,
-		}
-	}
 	root := filepath.Join(home, ".cursor", "skills")
-	return DetectResult{Installed: true, Roots: []string{root}, Message: "cursor skills root " + root}
+	out := DetectResult{Installed: true, Roots: []string{root}, Message: "cursor skills root " + root}
+	if existsDir(fsys, filepath.Join(home, ".claude", "skills")) {
+		out.Problems = append(out.Problems, cursorReadProblem(home))
+	}
+	return out
+}
+
+func cursorReadProblem(home string) Problem {
+	return Problem{
+		Level:   LevelInfo,
+		Target:  "cursor-user",
+		Path:    filepath.Join(home, ".claude", "skills"),
+		Message: "may also be read via ~/.claude/skills",
+	}
 }
 
 func cursorInstalled(fsys ports.FS, home string) bool {

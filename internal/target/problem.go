@@ -59,10 +59,27 @@ func BlockedNames(problems []Problem) []string {
 // DedupeReads drops a target only when its AlsoReads list names another
 // target that is also present. An empty list drops nothing.
 func DedupeReads(targets []domain.Target, reads map[TargetID][]TargetID) []domain.Target {
-	_ = reads
-	out := make([]domain.Target, len(targets))
-	copy(out, targets)
+	present := make(map[TargetID]bool, len(targets))
+	for _, t := range targets {
+		present[TargetID(t.ID)] = true
+	}
+	out := make([]domain.Target, 0, len(targets))
+	for _, t := range targets {
+		if readsPresent(reads[TargetID(t.ID)], present) {
+			continue
+		}
+		out = append(out, t)
+	}
 	return out
+}
+
+func readsPresent(ids []TargetID, present map[TargetID]bool) bool {
+	for _, id := range ids {
+		if present[id] {
+			return true
+		}
+	}
+	return false
 }
 
 // ValidateRoot reports whether a resolved root is safe to manage.

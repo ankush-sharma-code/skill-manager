@@ -148,8 +148,8 @@ func TestCursorManagedCopyWhenClaudeSkillsAbsent(t *testing.T) {
 	fsys, home := backends()[0].open(t)
 	mustMkdir(t, fsys, filepath.Join(home, ".cursor"))
 	cur := target.NewCursor(filepath.Join(home, ".skills"))
-	if cur.SupportsSymlink() || cur.Skip(fsys, home) {
-		t.Fatal("cursor should manage a copy when claude skills are absent")
+	if cur.SupportsSymlink() || len(cur.AlsoReads()) != 0 {
+		t.Fatal("cursor should manage a copy and AlsoReads stays empty")
 	}
 	if cur.Supports(domain.SyncSymlink) || !cur.Supports(domain.SyncCopy) {
 		t.Fatal("cursor symlink support is unverified")

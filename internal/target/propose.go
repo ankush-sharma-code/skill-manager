@@ -10,25 +10,32 @@ import (
 
 // Propose returns the targets to enable on first run.
 // A skill is registered once when roots resolve to the same directory.
-// ~/.agents/skills is omitted. Cursor is omitted when it would overlap
-// ~/.claude/skills.
+// ~/.agents/skills is omitted. Cursor is always managed when it is installed.
+// Overlapping tool reads are removed only through AlsoReads.
 func Propose(fsys ports.FS, home string) ([]domain.Target, []Problem, error) {
 	if !filepath.IsAbs(home) {
 		return nil, nil, errors.New("home must be absolute")
 	}
 	home = filepath.Clean(home)
 	var out []domain.Target
+	var problems []Problem
 	if claudeInstalled(fsys, home) {
 		out = append(out, claudeTarget(home))
 	}
-	cursor := NewCursor("")
-	if cursorInstalled(fsys, home) && !cursor.Skip(fsys, home) {
+	if cursorInstalled(fsys, home) {
 		out = append(out, cursorTarget(home))
+		if existsDir(fsys, filepath.Join(home, ".claude", "skills")) {
+			problems = append(problems, cursorReadProblem(home))
+		}
 	}
 	if codexInstalled(fsys, home) {
 		out = append(out, codexTarget(home))
 	}
-	kept, problems := DedupeRoots(fsys, out)
+	kept, aliases := DedupeRoots(fsys, out)
+	problems = append(problems, aliases...)
+	kept = DedupeReads(kept, map[TargetID][]TargetID{
+		"cursor-user": NewCursor("").AlsoReads(),
+	})
 	return kept, problems, nil
 }
 
