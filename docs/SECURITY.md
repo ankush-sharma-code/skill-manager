@@ -16,4 +16,4 @@ The daemon and the CLI are separate processes. There is currently no cross-proce
 
 The repository creates its root and `.stage` with mode `0700`. `.stage/rejected` is also `0700`. Other users on the machine cannot write those directories. That is the boundary for a home directory owned by one person. Do not point the repository at a directory that another user can write. A root or `.stage` that already exists keeps the mode it already has.
 
-`.trash` is created with mode `0755`. The repository root is mode `0700`, so other users cannot traverse the root to reach `.trash`.
+`.trash` is created with mode `0755`. Other users cannot reach `.trash` when the repository creates the root (0700). An existing root keeps its own mode.
