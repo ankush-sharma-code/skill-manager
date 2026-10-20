@@ -1,17 +1,15 @@
 # Skill Manager
 
-Skill Manager keeps one copy of each agent skill at `~/.skills/<name>/SKILL.md`.
+Skill Manager is a macOS app that syncs agent skills across Claude Code, Cursor, and Codex. The core is written in Go and the interface is a SwiftUI app.
 
-This repository has the skill name rules and the `SKILL.md` reader. Names match `^[a-z0-9][a-z0-9-]{0,63}$`. The reader keeps unknown frontmatter keys, including their order, comments, and quoting. The tree hash uses the sorted path, the file type, the permission, and the content.
+This repository is a work in progress, built as stacked pull requests.
 
-## Run the tests
-
-Install Go 1.22 or newer.
+## Build and test
 
 ```bash
 go test -race ./...
-go vet ./...
-golangci-lint run
 ```
 
-CI uses golangci-lint 2.15.0.
+## License
+
+Released under the MIT License. See [LICENSE](LICENSE).
