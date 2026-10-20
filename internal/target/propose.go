@@ -33,23 +33,26 @@ func Propose(fsys ports.FS, home string) ([]domain.Target, []Problem, error) {
 }
 
 // DedupeRoots keeps the first target for each physical root.
-// Alias problems are recorded by the canonical-root fix.
+// A later target that resolves to the same directory is an alias.
 func DedupeRoots(fsys ports.FS, targets []domain.Target) ([]domain.Target, []Problem) {
-	return dedupe(fsys, targets), nil
-}
-
-func dedupe(fsys ports.FS, targets []domain.Target) []domain.Target {
-	seen := make(map[string]struct{}, len(targets))
+	seen := make(map[string]domain.Target, len(targets))
 	out := make([]domain.Target, 0, len(targets))
+	var problems []Problem
 	for _, t := range targets {
 		key := rootKey(fsys, t.Root)
-		if _, ok := seen[key]; ok {
+		if first, ok := seen[key]; ok {
+			problems = append(problems, Problem{
+				Level:   LevelInfo,
+				Target:  t.ID,
+				Path:    t.Root,
+				Message: t.ID + " is an alias of " + first.ID,
+			})
 			continue
 		}
-		seen[key] = struct{}{}
+		seen[key] = t
 		out = append(out, t)
 	}
-	return out
+	return out, problems
 }
 
 // SlotPaths lists one managed path per distinct root for skill.
