@@ -14,6 +14,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/ankush-sharma-code/skill-manager/internal/domain"
 	"github.com/ankush-sharma-code/skill-manager/internal/ports"
@@ -53,8 +54,18 @@ func New(fsys ports.FS, clock ports.Clock, root string) (*Repo, error) {
 
 var _ ports.Repo = (*Repo)(nil)
 
+// processLock serializes skill-repo operations in this process.
+// It does not exclude other processes. See docs/SECURITY.md.
+var processLock sync.Mutex
+
 // List returns the skills whose directory names are valid skill names.
 func (r *Repo) List(ctx context.Context) ([]domain.Skill, error) {
+	processLock.Lock()
+	defer processLock.Unlock()
+	return r.list(ctx)
+}
+
+func (r *Repo) list(ctx context.Context) ([]domain.Skill, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -83,7 +94,7 @@ func (r *Repo) List(ctx context.Context) ([]domain.Skill, error) {
 	out := make([]domain.Skill, 0, len(names))
 	problems := make([]ports.SkillProblem, 0)
 	for _, name := range names {
-		skill, err := r.Get(ctx, domain.SkillName(name))
+		skill, err := r.get(ctx, domain.SkillName(name))
 		if err != nil {
 			if ctx.Err() != nil {
 				return nil, ctx.Err()
@@ -99,6 +110,12 @@ func (r *Repo) List(ctx context.Context) ([]domain.Skill, error) {
 
 // Get reads one skill from <root>/<name>.
 func (r *Repo) Get(ctx context.Context, name domain.SkillName) (domain.Skill, error) {
+	processLock.Lock()
+	defer processLock.Unlock()
+	return r.get(ctx, name)
+}
+
+func (r *Repo) get(ctx context.Context, name domain.SkillName) (domain.Skill, error) {
 	if err := ctx.Err(); err != nil {
 		return domain.Skill{}, err
 	}
@@ -138,6 +155,8 @@ func (r *Repo) Get(ctx context.Context, name domain.SkillName) (domain.Skill, er
 // .stage/<id>.old, then renames the new tree into place.
 // A crash between those renames is finished by Recover.
 func (r *Repo) Put(ctx context.Context, skill domain.Skill, files map[string][]byte) error {
+	processLock.Lock()
+	defer processLock.Unlock()
 	if err := ctx.Err(); err != nil {
 		return err
 	}
@@ -209,6 +228,8 @@ func (r *Repo) logfBackup(path string, err error) {
 // .trash grows without bound.
 // TODO: a later change should purge old trash entries.
 func (r *Repo) Delete(ctx context.Context, name domain.SkillName) error {
+	processLock.Lock()
+	defer processLock.Unlock()
 	if err := ctx.Err(); err != nil {
 		return err
 	}
@@ -523,6 +544,8 @@ func skillFromStageID(id string) (string, bool) {
 // on the same rule. Anything else is quarantined under .stage/rejected, or deleted when
 // it is an orphan .new from a crashed first publish. Symlinks are never followed.
 func (r *Repo) Recover(ctx context.Context) error {
+	processLock.Lock()
+	defer processLock.Unlock()
 	if err := ctx.Err(); err != nil {
 		return err
 	}
@@ -760,6 +783,8 @@ func (r *Repo) removeQuiet(path string) {
 // Problems returns skill directories the last List could not load.
 // Dot names and names that are not skill names are skipped, not reported.
 func (r *Repo) Problems() []ports.SkillProblem {
+	processLock.Lock()
+	defer processLock.Unlock()
 	if len(r.problems) == 0 {
 		return nil
 	}
@@ -769,8 +794,16 @@ func (r *Repo) Problems() []ports.SkillProblem {
 }
 
 // SetRand supplies bytes for trash names and stage ids.
-func (r *Repo) SetRand(rng io.Reader) { r.rng = rng }
+func (r *Repo) SetRand(rng io.Reader) {
+	processLock.Lock()
+	defer processLock.Unlock()
+	r.rng = rng
+}
 
 // SetLog receives a best-effort backup removal failure.
 // The default writes to the standard logger.
-func (r *Repo) SetLog(fn func(string, ...any)) { r.logf = fn }
+func (r *Repo) SetLog(fn func(string, ...any)) {
+	processLock.Lock()
+	defer processLock.Unlock()
+	r.logf = fn
+}
