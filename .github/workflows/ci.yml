@@ -20,3 +20,10 @@ jobs:
         uses: golangci/golangci-lint-action@v9
         with:
           version: v2.15.0
+      - name: CRAP
+        run: |
+          go run github.com/unclebob/crap4go/cmd/crap4go@v0.0.0-20260521190544-bee16dbdadb4 | tee /tmp/crap.txt
+          awk '
+            $NF ~ /^[0-9]+(\.[0-9]+)?$/ && ($NF + 0) >= 30 { found = 1; print }
+            END { exit found }
+          ' /tmp/crap.txt
