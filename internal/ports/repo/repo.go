@@ -640,11 +640,10 @@ func (r *Repo) recoverOne(name string, pair *stagePair) error {
 	if !r.withinRoot(live) {
 		return fmt.Errorf("stage entry escapes the root: %s", name)
 	}
-	info, err := r.fs.Lstat(live)
-	if err != nil && !errors.Is(err, fs.ErrNotExist) {
+	liveOK, err := r.liveDir(live)
+	if err != nil {
 		return err
 	}
-	liveOK := err == nil && realDir(info)
 	newOK, err := r.promotable(pair.newPath)
 	if err != nil {
 		return err
@@ -653,42 +652,59 @@ func (r *Repo) recoverOne(name string, pair *stagePair) error {
 	if err != nil {
 		return err
 	}
-	switch {
-	case newOK && pair.oldPath != "" && !liveOK:
-		if err := r.fs.Rename(pair.newPath, live); err != nil {
-			return err
-		}
-		return r.dropStage(pair.oldPath, name, true)
-	case oldOK && !liveOK:
-		if pair.newPath != "" {
-			if err := r.dropStage(pair.newPath, name, false); err != nil {
-				return err
-			}
-		}
-		return r.fs.Rename(pair.oldPath, live)
-	case pair.newPath != "" && liveOK:
+	return r.finishJournal(live, name, pair, liveOK, newOK, oldOK)
+}
+
+func (r *Repo) liveDir(path string) (bool, error) {
+	info, err := r.fs.Lstat(path)
+	if errors.Is(err, fs.ErrNotExist) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	return realDir(info), nil
+}
+
+func (r *Repo) finishJournal(live, name string, pair *stagePair, liveOK, newOK, oldOK bool) error {
+	if newOK && pair.oldPath != "" && !liveOK {
+		return r.rollForward(live, name, pair)
+	}
+	if oldOK && !liveOK {
+		return r.rollBack(live, name, pair)
+	}
+	if liveOK {
+		return r.dropPair(pair, name, true)
+	}
+	return r.dropPair(pair, name, false)
+}
+
+func (r *Repo) rollForward(live, name string, pair *stagePair) error {
+	if err := r.fs.Rename(pair.newPath, live); err != nil {
+		return err
+	}
+	return r.dropStage(pair.oldPath, name, true)
+}
+
+func (r *Repo) rollBack(live, name string, pair *stagePair) error {
+	if pair.newPath != "" {
 		if err := r.dropStage(pair.newPath, name, false); err != nil {
 			return err
 		}
-		if pair.oldPath != "" {
-			return r.dropStage(pair.oldPath, name, true)
-		}
-		return nil
-	case pair.oldPath != "" && liveOK:
-		return r.dropStage(pair.oldPath, name, true)
-	case pair.newPath != "":
+	}
+	return r.fs.Rename(pair.oldPath, live)
+}
+
+func (r *Repo) dropPair(pair *stagePair, name string, removeOld bool) error {
+	if pair.newPath != "" {
 		if err := r.dropStage(pair.newPath, name, false); err != nil {
 			return err
 		}
-		if pair.oldPath != "" {
-			return r.dropStage(pair.oldPath, name, false)
-		}
-		return nil
-	case pair.oldPath != "":
-		return r.dropStage(pair.oldPath, name, false)
-	default:
+	}
+	if pair.oldPath == "" {
 		return nil
 	}
+	return r.dropStage(pair.oldPath, name, removeOld)
 }
 
 func realDir(info fs.FileInfo) bool {
