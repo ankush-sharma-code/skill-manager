@@ -27,13 +27,11 @@ func inspect(fsys ports.FS, t domain.Target, repoRoot string) (Result, error) {
 	if err != nil {
 		return Result{}, err
 	}
-	out := make([]domain.Observed, 0, len(ents))
-	var problems []Problem
-	for _, ent := range ents {
-		if !keepSlot(ent.Name()) {
-			continue
-		}
-		ob, found, err := classifyAt(fsys, t.ID, root, repoRoot, ent.Name())
+	names := slotNames(ents)
+	out := make([]domain.Observed, 0, len(names))
+	problems := caseProblems(t.ID, root, names)
+	for _, name := range names {
+		ob, found, err := classifyAt(fsys, t.ID, root, repoRoot, name)
 		if err != nil {
 			return Result{}, err
 		}
@@ -133,14 +131,6 @@ func classifyDir(fsys ports.FS, id string, name domain.SkillName, slot string) (
 
 func missing(id string, name domain.SkillName) domain.Observed {
 	return domain.Observed{Target: id, Name: name, State: domain.SlotMissing}
-}
-
-func keepSlot(name string) bool {
-	if strings.HasPrefix(name, ".") || !slotElement(name) {
-		return false
-	}
-	_, err := domain.ParseSkillName(name)
-	return err == nil
 }
 
 func slotElement(name string) bool {
