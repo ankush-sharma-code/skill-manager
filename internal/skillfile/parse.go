@@ -188,6 +188,7 @@ func validateTree(n *yaml.Node, top bool) error {
 		seen := make(map[string]struct{}, len(n.Content)/2)
 		for i := 0; i < len(n.Content); i += 2 {
 			key := n.Content[i]
+			// A quoted "<<" is rejected deliberately. Its tag is !!str, not !!merge, and its value is still "<<".
 			if isMergeKey(key) {
 				return fmt.Errorf("%w: merge key is not allowed", domain.ErrInvalidFrontmatter)
 			}
@@ -232,8 +233,8 @@ func marshalFrontmatter(name, description string, meta *yaml.Node) ([]byte, erro
 	}
 	root := &yaml.Node{Kind: yaml.MappingNode}
 	root.Content = append(root.Content,
-		plainString("name"), plainString(name),
-		plainString("description"), plainString(description),
+		quotedString("name"), quotedString(name),
+		quotedString("description"), quotedString(description),
 	)
 	if meta != nil {
 		root.Content = append(root.Content, meta.Content...)
@@ -245,6 +246,6 @@ func marshalFrontmatter(name, description string, meta *yaml.Node) ([]byte, erro
 	return out, nil
 }
 
-func plainString(s string) *yaml.Node {
-	return &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: s}
+func quotedString(s string) *yaml.Node {
+	return &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: s, Style: yaml.DoubleQuotedStyle}
 }

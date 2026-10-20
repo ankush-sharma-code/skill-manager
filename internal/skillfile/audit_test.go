@@ -187,7 +187,7 @@ func TestSerializeRejectsBadInputs(t *testing.T) {
 	if err != nil {
 		t.Fatalf("nil meta: %v", err)
 	}
-	if !bytes.Contains(out, []byte("name: ok\n")) || !bytes.Contains(out, []byte("body\n")) {
+	if !bytes.Contains(out, []byte("\"name\": \"ok\"\n")) || !bytes.Contains(out, []byte("body\n")) {
 		t.Fatalf("nil meta output:\n%s", out)
 	}
 }
