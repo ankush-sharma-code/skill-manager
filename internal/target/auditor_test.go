@@ -29,7 +29,7 @@ func TestAuditorDedupeParentSymlink(t *testing.T) {
 		t.Fatal(err)
 	}
 	fsys := osfs.New()
-	ts, _ := target.Propose(fsys, home)
+	ts, _, _ := target.Propose(fsys, home)
 	paths, _ := target.SlotPaths(fsys, []domain.Target{
 		{ID: "claude-user", Root: filepath.Join(home, ".claude", "skills")},
 		{ID: "cursor-user", Root: filepath.Join(home, ".cursor", "skills")},

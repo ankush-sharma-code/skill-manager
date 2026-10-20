@@ -28,7 +28,7 @@ func TestNoSkillRegisteredTwiceAcrossOverlappingRoots(t *testing.T) {
 			mustMkdir(t, fsys, filepath.Join(home, ".agents"))
 			mustSymlink(t, fsys, claudeSkills, filepath.Join(home, ".agents", "skills"))
 
-			got, err := target.Propose(fsys, home)
+			got, _, err := target.Propose(fsys, home)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -66,7 +66,7 @@ func TestAgentsSkillsIsOptInOnly(t *testing.T) {
 	mustMkdir(t, fsys, filepath.Join(home, ".codex", "skills"))
 	mustMkdir(t, fsys, filepath.Join(home, ".agents", "skills"))
 	mustMkdir(t, fsys, filepath.Join(home, ".claude"))
-	got, err := target.Propose(fsys, home)
+	got, _, err := target.Propose(fsys, home)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -82,14 +82,14 @@ func TestAgentsSkillsIsOptInOnly(t *testing.T) {
 	if codex.Mode != domain.SyncSymlink || codex.Root != filepath.Join(home, ".codex", "skills") {
 		t.Fatalf("codex = %+v", codex)
 	}
-	opt, err := target.OptIn("agents", filepath.Join(home, ".agents", "skills"), domain.SyncSymlink)
+	opt, err := target.OptIn("agents", filepath.Join(home, ".agents", "skills"), domain.SyncCopy)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if opt.Kind != domain.TargetCustom || !opt.Enabled || opt.Root != filepath.Join(home, ".agents", "skills") {
 		t.Fatalf("opt-in = %+v", opt)
 	}
-	again, err := target.Propose(fsys, home)
+	again, _, err := target.Propose(fsys, home)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -101,7 +101,7 @@ func TestAgentsSkillsIsOptInOnly(t *testing.T) {
 func TestProposeAndOptInRejectBadPaths(t *testing.T) {
 	t.Parallel()
 	fsys, _ := backends()[0].open(t)
-	if _, err := target.Propose(fsys, "relative"); err == nil {
+	if _, _, err := target.Propose(fsys, "relative"); err == nil {
 		t.Fatal("relative home was accepted")
 	}
 	if _, err := target.OptIn("agents", "relative/skills", domain.SyncCopy); err == nil {

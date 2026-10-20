@@ -23,6 +23,10 @@ func (*Cursor) SupportsSymlink() bool { return false }
 
 func (*Cursor) Supports(mode domain.SyncMode) bool { return mode == domain.SyncCopy }
 
+// AlsoReads lists roots Cursor is verified to read besides its own.
+// The list stays empty until docs/targets.md records a credentialed check.
+func (*Cursor) AlsoReads() []TargetID { return nil }
+
 func (*Cursor) DefaultTargets(home string) []domain.Target {
 	return []domain.Target{cursorTarget(home)}
 }

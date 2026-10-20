@@ -12,9 +12,9 @@ import (
 // A skill is registered once when roots resolve to the same directory.
 // ~/.agents/skills is omitted. Cursor is omitted when it would overlap
 // ~/.claude/skills.
-func Propose(fsys ports.FS, home string) ([]domain.Target, error) {
+func Propose(fsys ports.FS, home string) ([]domain.Target, []Problem, error) {
 	if !filepath.IsAbs(home) {
-		return nil, errors.New("home must be absolute")
+		return nil, nil, errors.New("home must be absolute")
 	}
 	home = filepath.Clean(home)
 	var out []domain.Target
@@ -28,7 +28,14 @@ func Propose(fsys ports.FS, home string) ([]domain.Target, error) {
 	if codexInstalled(fsys, home) {
 		out = append(out, codexTarget(home))
 	}
-	return dedupe(fsys, out), nil
+	kept, problems := DedupeRoots(fsys, out)
+	return kept, problems, nil
+}
+
+// DedupeRoots keeps the first target for each physical root.
+// Alias problems are recorded by the canonical-root fix.
+func DedupeRoots(fsys ports.FS, targets []domain.Target) ([]domain.Target, []Problem) {
+	return dedupe(fsys, targets), nil
 }
 
 func dedupe(fsys ports.FS, targets []domain.Target) []domain.Target {

@@ -52,8 +52,8 @@ func TestSupportsSymlinkFollowsTargetsDoc(t *testing.T) {
 	if custom.SupportsSymlink() || custom.Kind() != domain.TargetCustom || len(custom.DefaultTargets(home)) != 0 {
 		t.Fatal("custom has no verified symlink support and no default root")
 	}
-	if !custom.Supports(domain.SyncCopy) || !custom.Supports(domain.SyncSymlink) {
-		t.Fatal("custom allows either mode")
+	if !custom.Supports(domain.SyncCopy) || custom.Supports(domain.SyncSymlink) {
+		t.Fatal("custom symlink support is unverified")
 	}
 
 	project, err := target.ClaudeProject(filepath.Join(home, "repo"))

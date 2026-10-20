@@ -35,6 +35,7 @@ type DetectResult struct {
 	To        string
 	Skip      bool
 	Message   string
+	Problems  []Problem
 }
 
 // Issue is one tool-specific validation failure.
@@ -78,7 +79,11 @@ type common struct {
 }
 
 func (c common) Observe(fsys ports.FS, t domain.Target) ([]domain.Observed, error) {
-	return observe(fsys, t, c.repoRoot)
+	res, err := Inspect(fsys, t, c.repoRoot)
+	if err != nil {
+		return nil, err
+	}
+	return res.Observed, nil
 }
 
 func (c common) Classify(fsys ports.FS, t domain.Target, name string) (domain.Observed, error) {
