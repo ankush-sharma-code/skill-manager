@@ -1,0 +1,26 @@
+{
+  "messages": [
+    {
+      "role": "tool",
+      "tool_call_id": "link",
+      "tool_name": "read_file",
+      "tool_args": {
+        "target_file": "/home/user/.cursor/skills/probe-alpha/SKILL.md"
+      },
+      "started_at_ms": 1700000000000,
+      "completed_at_ms": 1700000000100,
+      "duration_ms": 100
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "resolved",
+      "tool_name": "read_file",
+      "tool_args": {
+        "target_file": "/home/user/.skills/probe-alpha/SKILL.md"
+      },
+      "started_at_ms": 1700000002000,
+      "completed_at_ms": 1700000002100,
+      "duration_ms": 100
+    }
+  ]
+}

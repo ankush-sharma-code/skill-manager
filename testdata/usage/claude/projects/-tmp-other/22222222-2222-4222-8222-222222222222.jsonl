@@ -1,0 +1,2 @@
+{"fixture_header":true,"format":"claude-code-jsonl","format_version":"synthetic-1","provenance":"synthetic","unverified":true}
+{"type":"assistant","sessionId":"22222222-2222-4222-8222-222222222222","timestamp":"2026-01-02T03:04:06.000Z","uuid":"bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb1","cwd":"/tmp/demo","version":"0.0.0-synthetic","message":{"role":"assistant","content":[{"type":"tool_use","id":"toolu_synth_other","name":"Skill","input":{"skill":"other-skill"},"caller":{"type":"direct"}}]}}

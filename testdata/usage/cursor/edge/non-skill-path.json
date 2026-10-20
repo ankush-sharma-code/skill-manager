@@ -1,0 +1,26 @@
+{
+  "messages": [
+    {
+      "role": "tool",
+      "tool_call_id": "t1",
+      "tool_name": "read_file",
+      "tool_args": {
+        "target_file": "/home/user/notes/SKILL.md"
+      },
+      "started_at_ms": 1700000001000,
+      "completed_at_ms": 1700000001100,
+      "duration_ms": 100
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "t2",
+      "tool_name": "read_file",
+      "tool_args": {
+        "target_file": "/home/user/notskills/probe-alpha/SKILL.md"
+      },
+      "started_at_ms": 1700000002000,
+      "completed_at_ms": 1700000002100,
+      "duration_ms": 100
+    }
+  ]
+}

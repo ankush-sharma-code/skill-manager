@@ -1,0 +1,8 @@
+{
+  "format": "cursor-cloud-export",
+  "format_version": "unversioned-2026-10-20",
+  "export_version": "none; the cloud export object has only the messages key",
+  "provenance": "redacted transcript.json fetched from the capture run",
+  "timestamp_note": "started_at_ms and completed_at_ms are shifted onto synthetic epoch 1700000000000; duration_ms is unchanged",
+  "unverified": false
+}

@@ -1,0 +1,4 @@
+{"fixture_header":true,"format":"cursor-desktop-jsonl","format_version":"unverified-2026-07","provenance":"synthetic","unverified":true}
+{"role":"user","message":{"content":[{"type":"text","text":"/probe-beta"}]}}
+{"role":"assistant","message":{"content":[{"type":"text","text":"<redacted>"},{"type":"tool_use","name":"Read","input":{"path":"/Users/example/.cursor/skills/probe-alpha/SKILL.md"}}]}}
+{"type":"turn_ended","status":"success"}

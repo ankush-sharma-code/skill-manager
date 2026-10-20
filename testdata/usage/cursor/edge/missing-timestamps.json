@@ -1,0 +1,12 @@
+{
+  "messages": [
+    {
+      "role": "tool",
+      "tool_call_id": "notime",
+      "tool_name": "read_file",
+      "tool_args": {
+        "target_file": "/home/user/.cursor/skills/probe-beta/SKILL.md"
+      }
+    }
+  ]
+}
