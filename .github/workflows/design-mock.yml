@@ -1,0 +1,79 @@
+name: Design mock
+
+on:
+  push:
+  pull_request:
+
+concurrency:
+  group: design-mock-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  render:
+    runs-on: macos-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Xcode version
+        run: xcodebuild -version
+
+      - name: Render stills
+        working-directory: app/SkillManager
+        env:
+          MOCK_OUTPUT: /tmp/skill-manager-renders
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/skill-manager-renders
+          xcodebuild test \
+            -project SkillManager.xcodeproj \
+            -scheme SkillManager \
+            -destination 'platform=macOS' \
+            -derivedDataPath "$GITHUB_WORKSPACE/build" \
+            -only-testing:SkillManagerTests \
+            -parallel-testing-enabled NO \
+            CODE_SIGN_IDENTITY=- \
+            CODE_SIGN_STYLE=Manual \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=YES
+
+      - name: Record interactions
+        working-directory: app/SkillManager
+        run: |
+          set -euo pipefail
+          osascript -e 'tell application "System Events" to tell appearance preferences to set dark mode to false' || true
+          defaults delete NSGlobalDomain AppleInterfaceStyle || true
+          xcodebuild test \
+            -project SkillManager.xcodeproj \
+            -scheme SkillManager \
+            -destination 'platform=macOS' \
+            -derivedDataPath "$GITHUB_WORKSPACE/build" \
+            -only-testing:SkillManagerUITests \
+            -parallel-testing-enabled NO \
+            CODE_SIGN_IDENTITY=- \
+            CODE_SIGN_STYLE=Manual \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=YES
+
+      - name: Collect artifacts
+        if: always()
+        run: |
+          mkdir -p artifacts/renders
+          cp -v /tmp/skill-manager-renders/*.png artifacts/renders/ || true
+          movie=""
+          while IFS= read -r candidate; do
+            if [ -z "$movie" ]; then
+              movie="$candidate"
+            fi
+          done < <(find /tmp /var/folders "$HOME" "$GITHUB_WORKSPACE/build" -name 'skill-manager-interaction-light.mov' -print 2>/dev/null || true)
+          if [ -n "$movie" ]; then
+            cp -v "$movie" artifacts/interaction-light.mov
+          fi
+          find artifacts -type f -print
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: design-mock
+          path: artifacts/**
+          if-no-files-found: error
